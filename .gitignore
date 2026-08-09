@@ -1,0 +1,19 @@
+build/
+out/
+.qt/
+.cache/
+CMakeUserPresets.json
+*.user
+*.user.*
+compile_commands.json
+
+# Local media / render output used while testing
+media/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.flac
+*.m4a
+
+aqtinstall.log
