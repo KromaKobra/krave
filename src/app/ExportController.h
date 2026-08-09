@@ -8,6 +8,7 @@
 #include <memory>
 
 QT_BEGIN_NAMESPACE
+class QAnimationDriver;
 class QQmlEngine;
 class QQuickItem;
 class QQuickRenderControl;
@@ -33,6 +34,12 @@ class SpectrumEngine;
 /// binds it to the SAME Layer objects, so the export cannot drift from what the
 /// user saw. Only the pacing differs: frames are produced as fast as the GPU and
 /// the pipe allow rather than in real time.
+///
+/// A fixed-step QAnimationDriver is installed for the duration of the export, so
+/// every QML animation -- particle systems, transitions, anything the user adds
+/// -- advances exactly 1/fps per rendered frame. Without it those would follow
+/// wall-clock time and run wildly fast relative to the video, because rendering
+/// is several times quicker than real time.
 ///
 /// Frames are produced on the GUI thread by a zero-interval timer -- one frame
 /// per event-loop pass -- so the UI keeps repainting and progress keeps updating.
@@ -119,6 +126,7 @@ private:
     std::unique_ptr<QRhiRenderPassDescriptor> m_renderPass;
 
     QProcess *m_process = nullptr;
+    std::unique_ptr<QAnimationDriver> m_animationDriver;
     QTimer m_frameTimer;
     QElapsedTimer m_clock;
 

@@ -21,6 +21,8 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS
     QuickControls2
     Multimedia
     Concurrent
+    # Provides qt_add_shaders(), used to compile the blend-mode fragment shaders.
+    ShaderTools
 )
 
 qt_standard_project_setup(REQUIRES 6.8)

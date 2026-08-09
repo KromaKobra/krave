@@ -17,10 +17,16 @@ stream. Everything else follows from that:
 - Both render **the same `VisualizerCanvas.qml`** bound to **the same `Layer` objects**, so the
   exported video cannot drift from what you previewed.
 
-One rule keeps that promise honest: smoothing and decay are stored as **time constants**, and the
-blend factor is derived per frame as `1 - exp(-dt / tau)`. A per-frame factor would make a 30 fps
-export decay at half the rate of a 60 Hz preview. `tst_fft` asserts this directly — decaying for
-0.5 s at 30 fps and at 60 fps must land within 0.02 of each other.
+Two rules keep that promise honest:
+
+- Smoothing and decay are stored as **time constants**, with the blend factor derived per frame as
+  `1 - exp(-dt / tau)`. A per-frame factor would make a 30 fps export decay at half the rate of a
+  60 Hz preview. `tst_fft` asserts this directly — decaying for 0.5 s at 30 fps and at 60 fps must
+  land within 0.02 of each other.
+- Export installs a **fixed-step `QAnimationDriver`**, so every QML animation (particle systems
+  included) advances exactly 1/fps per rendered frame. Rendering runs several times faster than
+  real time, so on the wall clock a particle system would burn through twelve seconds of motion in
+  the two seconds the render actually took.
 
 ## Requirements
 
@@ -102,7 +108,25 @@ tests/        ctest suites for the FFT/analyzer and for project round-tripping
 `mvcore` links only `Qt6::Core`, which keeps the unit tests fast and headless and lets the export
 path reuse the analysis code without pulling in the scene graph.
 
-## Two Qt details worth knowing before editing this code
+## Layer types
+
+| Type | Reacts to audio | Notable properties |
+|---|---|---|
+| `bars` | yes, own analyzer | count, width, corner radius, min/max height, linear / mirrored / radial, solid / gradient / spectrum colour, reactive brightness, curve, attack & decay, frequency range, dB window |
+| `particles` | yes, own analyzer | driving band (bass/mid/treble), idle and reactive emission rates, colour, size, lifetime, speed, direction, spread, gravity |
+| `text` | no | text, font, size (relative to canvas height), colour, alignment |
+| `background` | no | colour, image, fill mode |
+
+Every layer also has position, size, rotation, opacity, visibility and blend mode. Geometry is
+normalized 0..1, so a project renders identically at preview size and at 4K.
+
+**Blend modes.** Qt Quick has no per-item blend mode. `add` and `screen` work by rendering the layer
+to a texture and running a `ShaderEffect` that exploits premultiplied source-over compositing:
+`dst = src.rgb + (1 - src.a) * dst`, so forcing `src.a` to 0 yields exact addition, and setting it to
+the channel maximum approximates Screen. True `multiply` needs the destination as a shader input,
+which the scene graph does not expose, so it is not offered.
+
+## Three Qt details worth knowing before editing this code
 
 **`QQuickWindow::grabWindow()` returns a null image** when the window is backed by a
 `QQuickRenderControl` (and Qt 5's `QQuickRenderControl::grab()` is gone). Export therefore renders
@@ -113,14 +137,25 @@ That needs `#include <rhi/qrhi.h>` and linking `Qt6::GuiPrivate`.
 item's root is silently clobbered. `LayerFrame.qml`'s root therefore spans the whole canvas and
 places the layer in an inner box, which is also why `frame.width`/`frame.height` mean the canvas.
 
-(Related: QML property names `layer` and `content` collide with `QQuickItem`'s FINAL `layer`
-property — hence `layerData` and the `layerObject` model role.)
+(Related: the QML property name `layer` collides with `QQuickItem`'s FINAL `layer` property — hence
+`layerData` and the `layerObject` model role.)
+
+**`ImageParticle`'s built-in sprite does not load** in this Qt build. Particles simulate correctly
+but draw nothing, with no warning. The app therefore ships `assets/glowdot.png` and sets `source:`
+explicitly. If particles ever vanish again, check that first — the system itself is rarely at fault.
 
 ## Status
 
-Working: audio import and playback, live FFT preview, EQ bar layer (linear / mirrored / radial),
-background and text layers, the layer stack, live property editing, project save/load, and export
-to MP4 (H.264) and MOV (ProRes 422 HQ) with progress, ETA and cancellation.
+Implemented: audio import and playback (mp3/wav/flac/aac/m4a/ogg), live FFT preview, EQ bar layer
+(linear / mirrored / radial), audio-reactive particle layer, background and text layers, the layer
+stack with reordering and visibility, `add`/`screen` blend modes, live property editing, project
+save/load, a headless `--render` mode, and export to MP4 (H.264) and MOV (ProRes 422 HQ) with
+resolution and frame-rate settings, optional audio, progress, ETA and cancellation.
 
-Not yet implemented: blend modes other than `normal` (Qt Quick has no per-item blend mode, so
-Add/Screen/Multiply need a `ShaderEffect` pass), and particle layers.
+Not implemented: `multiply` blending (see above), and video backgrounds — the background layer takes
+colours and still images only.
+
+Verified end to end: duration matches `ffprobe` within one frame across all six input formats;
+export frame 0 is pixel-identical in content to the preview at the same timestamp; particle
+simulation reaches the same state at a given timestamp whether rendered at 30 or 60 fps; cancelling
+mid-render leaves no partial file.

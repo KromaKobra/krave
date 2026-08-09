@@ -15,6 +15,7 @@ set(app_qml_files
     qml/layers/BarLayerView.qml
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
+    qml/layers/ParticleLayerView.qml
     qml/panels/TransportBar.qml
     qml/panels/TimelineRuler.qml
     qml/panels/LayerListPanel.qml
@@ -34,10 +35,29 @@ foreach(qml_file IN LISTS app_qml_files)
     set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_alias})
 endforeach()
 
+set_source_files_properties(assets/glowdot.png
+    PROPERTIES QT_RESOURCE_ALIAS assets/glowdot.png)
+
 qt_add_qml_module(musicvisualizer
     URI MusicVisualizer
     VERSION 1.0
     QML_FILES ${app_qml_files}
+    RESOURCES
+        # ImageParticle's built-in glowdot resource does not load in this Qt
+        # build, so the particle sprite ships with the app instead.
+        assets/glowdot.png
+)
+
+# Blend-mode fragment shaders. Compiled to .qsb and placed alongside the QML in
+# the module's resource tree, so LayerFrame can reference them by qrc path.
+qt_add_shaders(musicvisualizer "blend_shaders"
+    PREFIX "/qt/qml/MusicVisualizer"
+    FILES
+        shaders/blend_add.frag
+        shaders/blend_screen.frag
+    OUTPUTS
+        shaders/blend_add.frag.qsb
+        shaders/blend_screen.frag.qsb
 )
 
 target_link_libraries(musicvisualizer PRIVATE
@@ -53,6 +73,10 @@ target_link_libraries(musicvisualizer PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
 )
+
+# QtQuick.Particles is a QML-only import for the particle layer; naming it here
+# ensures the plugin is deployed alongside the app.
+find_package(Qt6 6.8 QUIET COMPONENTS QuickParticles)
 
 target_compile_definitions(musicvisualizer PRIVATE
     MV_VERSION="${PROJECT_VERSION}"

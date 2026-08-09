@@ -81,6 +81,16 @@ Flickable {
                 label: qsTr("Opacity"); target: root.selected; propertyName: "layerOpacity"
                 from: 0; to: 1
             }
+
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Blend mode"); target: root.selected; propertyName: "blendMode"
+                options: [
+                    { text: qsTr("Normal"), value: "normal" },
+                    { text: qsTr("Add"), value: "add" },
+                    { text: qsTr("Screen"), value: "screen" }
+                ]
+            }
         }
 
         // ------------------------------------------------------------ bars
@@ -269,6 +279,70 @@ Flickable {
                     { text: qsTr("Center"), value: "center" },
                     { text: qsTr("Right"), value: "right" }
                 ]
+            }
+        }
+
+        // ------------------------------------------------------- particles
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            visible: root.selected !== null && root.selected.typeId === "particles"
+
+            SectionHeader { text: qsTr("PARTICLES") }
+
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Driven by"); target: root.selected; propertyName: "band"
+                options: [
+                    { text: qsTr("Bass"), value: "bass" },
+                    { text: qsTr("Mid"), value: "mid" },
+                    { text: qsTr("Treble"), value: "treble" }
+                ]
+            }
+            ColorField {
+                Layout.fillWidth: true
+                label: qsTr("Colour"); target: root.selected; propertyName: "color"
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Idle rate (/s)"); target: root.selected; propertyName: "baseRate"
+                from: 0; to: 400; stepSize: 5; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Reactive rate (/s)"); target: root.selected
+                propertyName: "reactiveRate"
+                from: 0; to: 1500; stepSize: 10; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Size"); target: root.selected; propertyName: "particleSize"
+                from: 1; to: 80; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Lifetime (ms)"); target: root.selected; propertyName: "lifeSpan"
+                from: 200; to: 6000; stepSize: 50; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Speed"); target: root.selected; propertyName: "speed"
+                from: 0; to: 900; stepSize: 10; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Direction (°)"); target: root.selected; propertyName: "angle"
+                from: 0; to: 360; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Spread (°)"); target: root.selected; propertyName: "angleSpread"
+                from: 0; to: 180; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Gravity"); target: root.selected; propertyName: "gravity"
+                from: -500; to: 900; stepSize: 10; decimals: 0
             }
         }
 

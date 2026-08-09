@@ -55,6 +55,13 @@ public:
     /// True when this layer consumes spectrum data and must be analyzed each frame.
     virtual bool needsSpectrum() const { return false; }
 
+    /// Analyzer settings for this layer. Each spectrum-consuming layer gets its
+    /// own analyzer, so band counts and smoothing are genuinely per-layer.
+    virtual SpectrumParams analysisParams() const { return {}; }
+
+    /// Receive this frame's analysis. Called on the GUI thread.
+    virtual void applyFrame(const SpectrumFrame &) {}
+
 Q_SIGNALS:
     void changed();
 
@@ -127,10 +134,8 @@ public:
     qreal mid() const { return m_mid; }
     qreal treble() const { return m_treble; }
 
-    void applyFrame(const SpectrumFrame &frame);
-
-    /// Translate this layer's editable properties into analyzer parameters.
-    SpectrumParams analysisParams() const;
+    void applyFrame(const SpectrumFrame &frame) override;
+    SpectrumParams analysisParams() const override;
 
 Q_SIGNALS:
     void bandsChanged();
@@ -185,6 +190,60 @@ private:
     QColor m_color = QColor(QStringLiteral("#0b0b12"));
     QString m_imageSource;
     QString m_fillMode = QStringLiteral("crop");
+};
+
+/// Particle burst driven by one frequency band.
+///
+/// Carries its own analyzer settings (see Layer::analysisParams) so its
+/// reactivity is independent of any bar layer on the canvas.
+class ParticleLayer : public Layer
+{
+    Q_OBJECT
+
+    /// Which energy drives emission: "bass", "mid" or "treble".
+    Q_PROPERTY(QString band MEMBER m_band NOTIFY changed)
+    /// Particles per second when the band is silent.
+    Q_PROPERTY(qreal baseRate MEMBER m_baseRate NOTIFY changed)
+    /// Extra particles per second at full band energy.
+    Q_PROPERTY(qreal reactiveRate MEMBER m_reactiveRate NOTIFY changed)
+    Q_PROPERTY(QColor color MEMBER m_color NOTIFY changed)
+    Q_PROPERTY(qreal particleSize MEMBER m_particleSize NOTIFY changed)
+    Q_PROPERTY(qreal lifeSpan MEMBER m_lifeSpan NOTIFY changed)
+    Q_PROPERTY(qreal speed MEMBER m_speed NOTIFY changed)
+    /// Emission direction in degrees; 270 is straight up.
+    Q_PROPERTY(qreal angle MEMBER m_angle NOTIFY changed)
+    Q_PROPERTY(qreal angleSpread MEMBER m_angleSpread NOTIFY changed)
+    Q_PROPERTY(qreal gravity MEMBER m_gravity NOTIFY changed)
+
+    Q_PROPERTY(qreal level READ level NOTIFY levelChanged)
+
+public:
+    explicit ParticleLayer(QObject *parent = nullptr);
+
+    QString typeId() const override { return QStringLiteral("particles"); }
+    bool needsSpectrum() const override { return true; }
+    SpectrumParams analysisParams() const override;
+    void applyFrame(const SpectrumFrame &frame) override;
+
+    /// Energy of the selected band, 0..1.
+    qreal level() const { return m_level; }
+
+Q_SIGNALS:
+    void levelChanged();
+
+private:
+    QString m_band = QStringLiteral("bass");
+    qreal m_baseRate = 0.0;
+    qreal m_reactiveRate = 240.0;
+    QColor m_color = QColor(QStringLiteral("#4cc9f0"));
+    qreal m_particleSize = 14.0;
+    qreal m_lifeSpan = 1600.0;
+    qreal m_speed = 220.0;
+    qreal m_angle = 270.0;
+    qreal m_angleSpread = 40.0;
+    qreal m_gravity = 90.0;
+
+    qreal m_level = 0.0;
 };
 
 /// Static text, e.g. the track title.

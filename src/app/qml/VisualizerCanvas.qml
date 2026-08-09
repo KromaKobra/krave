@@ -46,6 +46,7 @@ Item {
                 case "bars": return barsComponent
                 case "background": return backgroundComponent
                 case "text": return textComponent
+                case "particles": return particlesComponent
                 default: return null
                 }
             }
@@ -67,5 +68,10 @@ Item {
     Component {
         id: textComponent
         TextLayerView {}
+    }
+
+    Component {
+        id: particlesComponent
+        ParticleLayerView {}
     }
 }

@@ -51,8 +51,8 @@ public:
 
     const QVector<Layer *> &layers() const { return m_layers; }
 
-    /// Every layer that needs per-frame spectrum data.
-    QVector<BarLayer *> spectrumLayers() const;
+    /// Every layer that needs per-frame spectrum data, whatever its type.
+    QVector<Layer *> spectrumLayers() const;
 
     /// Build a layer of the given type without inserting it. Used by project load.
     static Layer *createLayer(const QString &typeId, QObject *parent = nullptr);

@@ -1,0 +1,107 @@
+{
+    "format": "music-visualizer-project",
+    "version": 1,
+    "canvas": {
+        "width": 1920,
+        "height": 1080,
+        "color": "#ff08080f"
+    },
+    "layers": [
+        {
+            "type": "background",
+            "props": {
+                "name": "Backdrop",
+                "layerVisible": true,
+                "layerOpacity": 1,
+                "blendMode": "normal",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeW": 1,
+                "sizeH": 1,
+                "layerRotation": 0,
+                "color": "#ff0a0a14",
+                "imageSource": "",
+                "fillMode": "crop"
+            }
+        },
+        {
+            "type": "particles",
+            "props": {
+                "name": "Bass sparks",
+                "layerVisible": true,
+                "layerOpacity": 1,
+                "blendMode": "add",
+                "posX": 0.5,
+                "posY": 0.62,
+                "sizeW": 0.9,
+                "sizeH": 0.04,
+                "layerRotation": 0,
+                "band": "bass",
+                "baseRate": 10,
+                "reactiveRate": 900,
+                "color": "#ff2fb8ff",
+                "particleSize": 18,
+                "lifeSpan": 1800,
+                "speed": 260,
+                "angle": 270,
+                "angleSpread": 55,
+                "gravity": 120
+            }
+        },
+        {
+            "type": "bars",
+            "props": {
+                "name": "Mirrored spectrum",
+                "layerVisible": true,
+                "layerOpacity": 1,
+                "blendMode": "add",
+                "posX": 0.5,
+                "posY": 0.62,
+                "sizeW": 0.88,
+                "sizeH": 0.42,
+                "layerRotation": 0,
+                "barCount": 72,
+                "barWidthRatio": 0.6,
+                "cornerRadius": 3,
+                "minHeight": 0.01,
+                "maxHeight": 0.95,
+                "orientation": "mirrored",
+                "innerRadius": 0.35,
+                "growUpward": true,
+                "colorMode": "gradient",
+                "colorA": "#ff4cc9f0",
+                "colorB": "#fff72585",
+                "reactiveBrightness": 0.8,
+                "fftSize": 2048,
+                "minHz": 30,
+                "maxHz": 16000,
+                "floorDb": -72,
+                "ceilingDb": -6,
+                "scalingCurve": "power",
+                "gamma": 0.8,
+                "attackMs": 8,
+                "decayMs": 220
+            }
+        },
+        {
+            "type": "text",
+            "props": {
+                "name": "Title",
+                "layerVisible": true,
+                "layerOpacity": 0.92,
+                "blendMode": "normal",
+                "posX": 0.5,
+                "posY": 0.16,
+                "sizeW": 0.9,
+                "sizeH": 0.12,
+                "layerRotation": 0,
+                "text": "Music Visualizer",
+                "fontFamily": "Segoe UI",
+                "fontScale": 0.075,
+                "bold": true,
+                "color": "#ffeaeaf5",
+                "alignment": "center"
+            }
+        }
+    ]
+}

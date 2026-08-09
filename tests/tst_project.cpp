@@ -18,6 +18,7 @@ private Q_SLOTS:
     void projectFileContainsNoAudioPath();
     void rejectsNewerFormatVersion();
     void layerOrderIsPreserved();
+    void spectrumConsumersAreDiscovered();
     void modelReordersAndDeletes();
 };
 
@@ -164,8 +165,18 @@ void TestProject::layerOrderIsPreserved()
     model.clear();
 
     model.addLayer(QStringLiteral("background"));
+    model.addLayer(QStringLiteral("particles"));
     model.addLayer(QStringLiteral("bars"));
     model.addLayer(QStringLiteral("text"));
+
+    // Give the particle layer non-default values too, so its properties are
+    // covered by the round-trip and not just its type.
+    auto *particles = qobject_cast<ParticleLayer *>(model.at(1));
+    QVERIFY(particles);
+    particles->setProperty("band", QStringLiteral("treble"));
+    particles->setProperty("reactiveRate", 777.0);
+    particles->setProperty("color", QColor(QStringLiteral("#12ab34")));
+
     QVERIFY(project.save(QUrl::fromLocalFile(path)));
 
     LayerModel loaded;
@@ -173,10 +184,37 @@ void TestProject::layerOrderIsPreserved()
     loadProject.setLayerModel(&loaded);
     QVERIFY(loadProject.load(QUrl::fromLocalFile(path)));
 
-    QCOMPARE(loaded.count(), 3);
+    QCOMPARE(loaded.count(), 4);
     QCOMPARE(loaded.at(0)->typeId(), QStringLiteral("background"));
-    QCOMPARE(loaded.at(1)->typeId(), QStringLiteral("bars"));
-    QCOMPARE(loaded.at(2)->typeId(), QStringLiteral("text"));
+    QCOMPARE(loaded.at(1)->typeId(), QStringLiteral("particles"));
+    QCOMPARE(loaded.at(2)->typeId(), QStringLiteral("bars"));
+    QCOMPARE(loaded.at(3)->typeId(), QStringLiteral("text"));
+
+    QCOMPARE(loaded.at(1)->property("band").toString(), QStringLiteral("treble"));
+    QCOMPARE(loaded.at(1)->property("reactiveRate").toDouble(), 777.0);
+    QCOMPARE(loaded.at(1)->property("color").value<QColor>(), QColor(QStringLiteral("#12ab34")));
+}
+
+void TestProject::spectrumConsumersAreDiscovered()
+{
+    LayerModel model;
+    model.clear();
+
+    model.addLayer(QStringLiteral("background"));
+    model.addLayer(QStringLiteral("bars"));
+    model.addLayer(QStringLiteral("text"));
+    model.addLayer(QStringLiteral("particles"));
+
+    // Bars and particles both need per-frame analysis; background and text do not.
+    const QVector<Layer *> consumers = model.spectrumLayers();
+    QCOMPARE(consumers.size(), 2);
+    QCOMPARE(consumers.at(0)->typeId(), QStringLiteral("bars"));
+    QCOMPARE(consumers.at(1)->typeId(), QStringLiteral("particles"));
+
+    // Each consumer must analyze under its own settings, keyed by a unique id.
+    QVERIFY(consumers.at(0)->layerId() != consumers.at(1)->layerId());
+    QVERIFY(consumers.at(0)->analysisParams().bandCount
+            != consumers.at(1)->analysisParams().bandCount);
 }
 
 void TestProject::modelReordersAndDeletes()

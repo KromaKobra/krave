@@ -56,6 +56,42 @@ SpectrumParams BarLayer::analysisParams() const
     return p;
 }
 
+ParticleLayer::ParticleLayer(QObject *parent)
+    : Layer(parent)
+{
+    m_name = tr("Particles");
+    m_posY = 0.8;
+    m_sizeH = 0.1;
+}
+
+SpectrumParams ParticleLayer::analysisParams() const
+{
+    // A particle layer only needs the three aggregate energies, so it runs a
+    // coarse band layout -- no point paying for 64 bands it will not read.
+    SpectrumParams p;
+    p.bandCount = 24;
+    p.attackTau = 0.005;
+    p.decayTau = 0.120;
+    return p;
+}
+
+void ParticleLayer::applyFrame(const SpectrumFrame &frame)
+{
+    qreal value;
+    if (m_band == QLatin1String("treble"))
+        value = qreal(frame.treble);
+    else if (m_band == QLatin1String("mid"))
+        value = qreal(frame.mid);
+    else
+        value = qreal(frame.bass);
+
+    if (qFuzzyCompare(m_level + 1.0, value + 1.0))
+        return;
+
+    m_level = value;
+    Q_EMIT levelChanged();
+}
+
 BackgroundLayer::BackgroundLayer(QObject *parent)
     : Layer(parent)
 {

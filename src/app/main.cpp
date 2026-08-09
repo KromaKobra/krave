@@ -208,8 +208,13 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return -1;
 
-    // Opening straight onto a track: handy from the shell, and what a file
-    // association would do.
+    // Opening straight onto a project and/or a track: handy from the shell, and
+    // what a file association would do.
+    if (parser.isSet(projectOption)) {
+        if (!project.load(QUrl::fromLocalFile(parser.value(projectOption))))
+            qWarning("Could not load project: %s", qPrintable(project.lastError()));
+    }
+
     if (parser.isSet(audioOption)) {
         const QString audioPath = parser.value(audioOption);
         QTimer::singleShot(0, &app,

@@ -191,6 +191,12 @@ ColumnLayout {
 
         AddButton {
             Layout.fillWidth: true
+            text: qsTr("+ Particles")
+            onClicked: layerModel.addLayer("particles")
+        }
+
+        AddButton {
+            Layout.fillWidth: true
             text: qsTr("+ BG")
             onClicked: layerModel.addLayer("background")
         }

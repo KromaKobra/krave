@@ -7,6 +7,7 @@
 
 #include <FfmpegLocator.h>
 
+#include <QAnimationDriver>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
@@ -30,6 +31,35 @@ namespace {
 constexpr qint64 kWriteHighWaterMark = 32 * 1024 * 1024;
 
 constexpr auto kCanvasUrl = "qrc:/qt/qml/MusicVisualizer/VisualizerCanvas.qml";
+
+/// Advances the Qt animation clock by exactly one output frame at a time.
+///
+/// Installing this decouples every QML animation from wall-clock time for the
+/// duration of the export. Rendering runs several times faster than real time,
+/// so without it a particle system would burn through twelve seconds of motion
+/// in the two seconds the render actually took.
+class FixedStepAnimationDriver : public QAnimationDriver
+{
+public:
+    explicit FixedStepAnimationDriver(double fps, QObject *parent = nullptr)
+        : QAnimationDriver(parent)
+        , m_stepMs(1000.0 / qMax(1.0, fps))
+    {
+    }
+
+    /// Step one frame forward and let Qt update every running animation.
+    void step()
+    {
+        m_elapsedMs += m_stepMs;
+        advance();
+    }
+
+    qint64 elapsed() const override { return qint64(m_elapsedMs); }
+
+private:
+    double m_stepMs;
+    double m_elapsedMs = 0.0;
+};
 
 } // namespace
 
@@ -332,6 +362,11 @@ bool ExportController::start(const QUrl &outputUrl)
     if (!startProcess())
         return false;
 
+    // Take over the animation clock so QML animations advance per output frame
+    // rather than per wall-clock millisecond.
+    m_animationDriver = std::make_unique<FixedStepAnimationDriver>(m_fps);
+    m_animationDriver->install();
+
     setStatus(tr("Rendering…"));
     m_clock.start();
     m_frameTimer.start();
@@ -367,6 +402,9 @@ void ExportController::renderNextFrame()
     // time-constant smoothing match across frame rates.
     const double t = double(m_frameIndex) / double(m_fps);
     m_spectrum->renderFrameSync(t, 1.0 / double(m_fps));
+
+    // Advance QML animations by one frame before syncing the scene.
+    static_cast<FixedStepAnimationDriver *>(m_animationDriver.get())->step();
 
     m_renderControl->polishItems();
     m_renderControl->beginFrame();
@@ -418,6 +456,13 @@ void ExportController::finish(bool success)
 
     m_frameTimer.stop();
     m_paused = false;
+
+    // Hand the animation clock back before anything else, so the editor's
+    // animations resume normally even if the teardown below runs into trouble.
+    if (m_animationDriver) {
+        m_animationDriver->uninstall();
+        m_animationDriver.reset();
+    }
 
     QString stderrText;
     if (m_process) {

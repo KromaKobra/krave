@@ -54,6 +54,8 @@ Layer *LayerModel::createLayer(const QString &typeId, QObject *parent)
         return new BackgroundLayer(parent);
     if (typeId == QLatin1String("text"))
         return new TextLayer(parent);
+    if (typeId == QLatin1String("particles"))
+        return new ParticleLayer(parent);
     return nullptr;
 }
 
@@ -164,12 +166,12 @@ void LayerModel::setSelectedIndex(int index)
     Q_EMIT selectedIndexChanged();
 }
 
-QVector<BarLayer *> LayerModel::spectrumLayers() const
+QVector<Layer *> LayerModel::spectrumLayers() const
 {
-    QVector<BarLayer *> result;
+    QVector<Layer *> result;
     for (Layer *layer : m_layers) {
-        if (auto *bars = qobject_cast<BarLayer *>(layer))
-            result.append(bars);
+        if (layer->needsSpectrum())
+            result.append(layer);
     }
     return result;
 }

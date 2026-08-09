@@ -132,7 +132,7 @@ QVector<AnalysisRequest> SpectrumEngine::collectRequests() const
     if (!m_model)
         return requests;
 
-    for (BarLayer *layer : m_model->spectrumLayers()) {
+    for (Layer *layer : m_model->spectrumLayers()) {
         AnalysisRequest req;
         req.layerId = layer->layerId();
         req.params = layer->analysisParams();
@@ -146,8 +146,9 @@ void SpectrumEngine::applyResults(const QVector<AnalysisResult> &results)
     if (!m_model)
         return;
 
+    const QVector<Layer *> consumers = m_model->spectrumLayers();
     for (const AnalysisResult &r : results) {
-        for (BarLayer *layer : m_model->spectrumLayers()) {
+        for (Layer *layer : consumers) {
             if (layer->layerId() == r.layerId) {
                 layer->applyFrame(r.frame);
                 break;
