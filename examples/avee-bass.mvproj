@@ -11,7 +11,7 @@
                 "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
 
                 "bandCount": 32,
-                "windowMs": 120,
+                "windowMs": 220,
                 "averageCount": 1,
 
                 "minHz": -72,
@@ -20,14 +20,14 @@
 
                 "bandMeasure": "rms",
                 "amplitudeMode": "linear",
-                "linearGain": 1.45,
-                "linearFloor": 0.02,
+                "linearGain": 0.45,
+                "linearFloor": 0.0,
                 "lowFreqMagnitude": 1.0,
                 "tiltDbPerOctave": 0.0,
                 "bandNormalization": 0.0,
                 "gateDb": 0.0,
                 "scalingCurve": "power",
-                "gamma": 1.7,
+                "gamma": 0.35,
 
                 "smoothingMode": "attackDecay",
                 "attackMs": 5,
