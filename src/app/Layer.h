@@ -121,6 +121,10 @@ class AudioProviderLayer : public Layer
     /// reads as one continuous mound.
     Q_PROPERTY(QString amplitudeMode MEMBER m_amplitudeMode NOTIFY changed)
     Q_PROPERTY(qreal linearGain MEMBER m_linearGain NOTIFY changed)
+    /// Linear mode: black level subtracted after the gain, then rescaled. Quiet
+    /// passages still carry rumble in every band; without this the display never
+    /// rests at the baseline.
+    Q_PROPERTY(qreal linearFloor MEMBER m_linearFloor NOTIFY changed)
     /// Gain at the bottom of the frequency range, ramping to 1.0 at the top.
     /// Bass dominates any mix; pulling the bottom down spreads the picture
     /// across the whole width instead of piling it up at the low end.
@@ -189,6 +193,7 @@ private:
     QString m_bandMeasure = QStringLiteral("rms");
     QString m_amplitudeMode = QStringLiteral("db");
     qreal m_linearGain = 30.0;
+    qreal m_linearFloor = 0.0;
     qreal m_lowFreqMagnitude = 1.0;
     qreal m_tiltDbPerOctave = 0.0;
     qreal m_bandNormalization = 0.7;

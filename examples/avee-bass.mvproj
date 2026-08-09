@@ -20,13 +20,14 @@
 
                 "bandMeasure": "rms",
                 "amplitudeMode": "linear",
-                "linearGain": 1.5,
+                "linearGain": 1.45,
+                "linearFloor": 0.02,
                 "lowFreqMagnitude": 1.0,
                 "tiltDbPerOctave": 0.0,
                 "bandNormalization": 0.0,
                 "gateDb": 0.0,
-                "scalingCurve": "linear",
-                "gamma": 1.0,
+                "scalingCurve": "power",
+                "gamma": 1.7,
 
                 "smoothingMode": "attackDecay",
                 "attackMs": 5,
@@ -49,7 +50,7 @@
             "props": {
                 "name": "Spectrum",
                 "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.442, "sizeW": 1.0, "sizeH": 0.844,
+                "posX": 0.5, "posY": 0.598, "sizeW": 1.0, "sizeH": 0.62,
                 "layerRotation": 0,
 
                 "providerId": 0,
@@ -58,7 +59,7 @@
                 "growUpward": true,
                 "barWidthRatio": 1.0,
                 "cornerRadius": 0,
-                "minHeight": 0.012,
+                "minHeight": 0.01,
                 "maxHeight": 1.0,
                 "innerRadius": 0.35,
 

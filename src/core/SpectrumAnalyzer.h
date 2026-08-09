@@ -119,6 +119,14 @@ struct SpectrumParams
     /// Linear mode only: magnitude is multiplied by this to reach 0..1.
     double linearGain = 30.0;
 
+    /// Linear mode only: black level, subtracted after the gain and rescaled.
+    ///
+    /// Quiet passages still contain rumble and room tone across every band. With
+    /// no floor those bands sit visibly above the baseline, so the display never
+    /// rests. Subtracting a floor puts them at zero and lets the curve act on
+    /// what is left, which is what keeps the body low while peaks stay tall.
+    double linearFloor = 0.0;
+
     /// Gain applied at the very bottom of the frequency range, ramping linearly
     /// to 1.0 at the top. 1.0 leaves the response alone.
     ///

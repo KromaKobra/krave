@@ -34,6 +34,7 @@ SpectrumParams AudioProviderLayer::analysisParams() const
     p.amplitude = (m_amplitudeMode == QLatin1String("linear")) ? AmplitudeMode::Linear
                                                                : AmplitudeMode::Decibel;
     p.linearGain = m_linearGain;
+    p.linearFloor = m_linearFloor;
     p.lowFreqMagnitude = m_lowFreqMagnitude;
     p.smoothing = (m_smoothingMode == QLatin1String("symmetric"))
                       ? SmoothingMode::Symmetric

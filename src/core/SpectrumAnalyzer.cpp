@@ -278,6 +278,14 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
             // with sharp peaks standing on it.
             double v = double(amplitude) * norm * m_params.linearGain;
             v *= std::pow(10.0, m_bandGainDb[b] / 20.0); // tilt, as a gain
+
+            // Black level: drop the residual noise that otherwise holds every
+            // band above the baseline, then rescale so the remaining range
+            // still reaches 1.0.
+            if (m_params.linearFloor > 0.0) {
+                const double f = std::min(m_params.linearFloor, 0.99);
+                v = (v - f) / (1.0 - f);
+            }
             v = std::clamp(v, 0.0, 1.0);
 
             switch (m_params.curve) {
