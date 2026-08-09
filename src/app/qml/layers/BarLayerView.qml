@@ -13,6 +13,8 @@ import QtQuick
 LayerFrame {
     id: frame
 
+    // The bar count comes from the data, not from a visual setting: the audio
+    // provider decides how many bands there are, and mirroring doubles them.
     readonly property int barCount: layerData ? Math.max(1, layerData.barCount) : 1
     readonly property string orientation: layerData ? layerData.orientation : "linear"
 

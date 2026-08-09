@@ -47,6 +47,7 @@ Item {
                 case "background": return backgroundComponent
                 case "text": return textComponent
                 case "particles": return particlesComponent
+                // "audio" is the provider: it conditions data and draws nothing.
                 default: return null
                 }
             }

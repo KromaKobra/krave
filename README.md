@@ -108,11 +108,35 @@ tests/        ctest suites for the FFT/analyzer and for project round-tripping
 `mvcore` links only `Qt6::Core`, which keeps the unit tests fast and headless and lets the export
 path reuse the analysis code without pulling in the scene graph.
 
+## The Audio provider layer
+
+"What the spectrum really is" and "what looks good" are different problems. A
+faithful FFT readout jitters every frame, slopes steeply off toward the treble, and
+never sits still — every bar hovers at a similar mid height and the whole row reads
+as busy noise rather than as music.
+
+So all audio conditioning lives on its own **Audio provider** layer, and bar layers
+just draw what it hands them. Bar layers carry only appearance. One provider can
+feed any number of bar layers, and the FFT runs once per provider rather than once
+per thing drawing it.
+
+| Control | What it fixes |
+|---|---|
+| Band measure (average / peak) | `peak` follows individual partials and is the biggest single source of frame-to-frame jitter; `rms` averages the bins in a band |
+| Treble lift (dB/octave) | Music rolls off with frequency, leaving the outer bars stuck near the floor |
+| Per-band auto-gain | References each band to its own slow-moving average, so a quiet band is as animated as a loud one. Referenced to the average and **not** the recent peak — a peak reference pins every band at its own maximum and flattens the dynamics to nothing |
+| Floor / ceiling / gate (dB) | Sets how much of the range is used and how empty the gaps between beats read |
+| Curve + gamma | The main lever for *punch* — how far peaks stand above the resting level |
+| Attack / decay | Rise fast, fall slow |
+| Neighbour smoothing | Turns a comb of unrelated spikes into one moving contour |
+| Resting level | Keeps idle bars visible |
+
 ## Layer types
 
 | Type | Reacts to audio | Notable properties |
 |---|---|---|
-| `bars` | yes, own analyzer | count, width, corner radius, min/max height, linear / mirrored / radial, solid / gradient / spectrum colour, reactive brightness, curve, attack & decay, frequency range, dB window |
+| `audio` | provides the data | see above. Draws nothing |
+| `bars` | fed by a provider | width, corner radius, min/max height, linear / mirrored / radial, **mirror spectrum** (bass at centre, treble at both edges), solid / gradient / spectrum colour, reactive brightness |
 | `particles` | yes, own analyzer | driving band (bass/mid/treble), idle and reactive emission rates, colour, size, lifetime, speed, direction, spread, gravity |
 | `text` | no | text, font, size (relative to canvas height), colour, alignment |
 | `background` | no | colour, image, fill mode |
@@ -139,6 +163,13 @@ places the layer in an inner box, which is also why `frame.width`/`frame.height`
 
 (Related: the QML property name `layer` collides with `QQuickItem`'s FINAL `layer` property — hence
 `layerData` and the `layerObject` model role.)
+
+**Analyzer parameters are re-sent every frame.** `SpectrumAnalyzer::setParams` must
+therefore distinguish "buffers need rebuilding" from "a value changed". Rebuilding
+unconditionally clears the smoothing envelope and the auto-gain reference on every
+frame, which silently degrades attack/decay from a filter into a plain gain and stops
+auto-gain ever converging — with no error and a plausible-looking picture.
+`tst_fft::analyzerKeepsStateWhenParamsAreResent` guards this.
 
 **`ImageParticle`'s built-in sprite does not load** in this Qt build. Particles simulate correctly
 but draw nothing, with no warning. The app therefore ships `assets/glowdot.png` and sets `source:`

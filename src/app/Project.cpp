@@ -58,6 +58,60 @@ Layer *deserializeLayer(const QJsonObject &obj)
     return layer;
 }
 
+/// Rewrite a v1 layer array in v2 shape.
+///
+/// v1 kept fftSize/minHz/maxHz/floorDb/ceilingDb/scalingCurve/gamma/attack/decay
+/// and barCount on every bar layer. v2 moves them to an AudioProviderLayer. The
+/// first bar layer's settings become the provider, since a v1 project had no way
+/// to express more than one analysis configuration anyway.
+QJsonArray migrateFromV1(const QJsonArray &layers)
+{
+    static const QStringList moved = {
+        QStringLiteral("fftSize"),      QStringLiteral("minHz"),
+        QStringLiteral("maxHz"),        QStringLiteral("floorDb"),
+        QStringLiteral("ceilingDb"),    QStringLiteral("scalingCurve"),
+        QStringLiteral("gamma"),        QStringLiteral("attackMs"),
+        QStringLiteral("decayMs"),
+    };
+
+    QJsonObject providerProps;
+    providerProps.insert(QStringLiteral("name"), QStringLiteral("Audio provider"));
+    bool haveSettings = false;
+
+    QJsonArray out;
+    for (const QJsonValue &value : layers) {
+        QJsonObject layer = value.toObject();
+        if (layer.value(QStringLiteral("type")).toString() != QLatin1String("bars")) {
+            out.append(layer);
+            continue;
+        }
+
+        QJsonObject props = layer.value(QStringLiteral("props")).toObject();
+        if (!haveSettings) {
+            for (const QString &key : moved) {
+                if (props.contains(key))
+                    providerProps.insert(key, props.value(key));
+            }
+            if (props.contains(QStringLiteral("barCount")))
+                providerProps.insert(QStringLiteral("bandCount"),
+                                     props.value(QStringLiteral("barCount")));
+            haveSettings = true;
+        }
+        for (const QString &key : moved)
+            props.remove(key);
+        props.remove(QStringLiteral("barCount"));
+
+        layer.insert(QStringLiteral("props"), props);
+        out.append(layer);
+    }
+
+    QJsonObject provider;
+    provider.insert(QStringLiteral("type"), QStringLiteral("audio"));
+    provider.insert(QStringLiteral("props"), providerProps);
+    out.prepend(provider);
+    return out;
+}
+
 } // namespace
 
 Project::Project(QObject *parent)
@@ -192,8 +246,11 @@ bool Project::load(const QUrl &url)
     m_canvasHeight = canvas.value(QStringLiteral("height")).toInt(1080);
     m_canvasColor = QColor(canvas.value(QStringLiteral("color")).toString(QStringLiteral("#0b0b12")));
 
+    QJsonArray array = root.value(QStringLiteral("layers")).toArray();
+    if (version < 2)
+        array = migrateFromV1(array);
+
     QVector<Layer *> layers;
-    const QJsonArray array = root.value(QStringLiteral("layers")).toArray();
     for (const QJsonValue &value : array) {
         if (Layer *layer = deserializeLayer(value.toObject()))
             layers.append(layer);

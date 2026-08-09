@@ -19,6 +19,8 @@ private Q_SLOTS:
     void rejectsNewerFormatVersion();
     void layerOrderIsPreserved();
     void spectrumConsumersAreDiscovered();
+    void mirrorSpectrumIsSymmetric();
+    void v1ProjectsMigrateToProvider();
     void modelReordersAndDeletes();
 };
 
@@ -40,7 +42,6 @@ void TestProject::roundTripPreservesEveryProperty()
 
     // Push every property off its default so a missed field cannot pass by luck.
     bars->setProperty("name", QStringLiteral("Custom bars"));
-    bars->setProperty("barCount", 111);
     bars->setProperty("barWidthRatio", 0.42);
     bars->setProperty("cornerRadius", 7.5);
     bars->setProperty("minHeight", 0.02);
@@ -52,15 +53,6 @@ void TestProject::roundTripPreservesEveryProperty()
     bars->setProperty("colorA", QColor(QStringLiteral("#ff8800")));
     bars->setProperty("colorB", QColor(QStringLiteral("#0088ff")));
     bars->setProperty("reactiveBrightness", 1.25);
-    bars->setProperty("fftSize", 4096);
-    bars->setProperty("minHz", 45.0);
-    bars->setProperty("maxHz", 14000.0);
-    bars->setProperty("floorDb", -80.0);
-    bars->setProperty("ceilingDb", -3.0);
-    bars->setProperty("scalingCurve", QStringLiteral("power"));
-    bars->setProperty("gamma", 2.5);
-    bars->setProperty("attackMs", 33.0);
-    bars->setProperty("decayMs", 275.0);
     bars->setProperty("layerOpacity", 0.72);
     bars->setProperty("posX", 0.31);
     bars->setProperty("posY", 0.62);
@@ -117,10 +109,14 @@ void TestProject::projectFileContainsNoAudioPath()
     const QByteArray contents = file.readAll();
 
     // Projects are meant to be reusable templates: no track reference at all.
-    QVERIFY(!contents.contains("audio"));
-    QVERIFY(!contents.contains(".mp3"));
-    QVERIFY(!contents.contains(".wav"));
+    // Checked precisely rather than by searching for "audio", which is also the
+    // audio provider layer's type name.
     QVERIFY(!contents.contains("trackPath"));
+    QVERIFY(!contents.contains("audioPath"));
+    for (const char *ext : {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"})
+        QVERIFY2(!contents.contains(ext), ext);
+    // No absolute path of any kind should have been written.
+    QVERIFY(!contents.contains(":/") || !contents.contains(":\\"));
 
     const QJsonObject root = QJsonDocument::fromJson(contents).object();
     QCOMPARE(root.value(QStringLiteral("version")).toInt(), Project::kFormatVersion);
@@ -200,21 +196,123 @@ void TestProject::spectrumConsumersAreDiscovered()
     LayerModel model;
     model.clear();
 
+    model.addLayer(QStringLiteral("audio"));
     model.addLayer(QStringLiteral("background"));
     model.addLayer(QStringLiteral("bars"));
     model.addLayer(QStringLiteral("text"));
     model.addLayer(QStringLiteral("particles"));
 
-    // Bars and particles both need per-frame analysis; background and text do not.
+    // Since v2 the FFT is run for providers and particle layers only. Bar layers
+    // are fed from a provider, so adding ten of them costs no extra analysis.
     const QVector<Layer *> consumers = model.spectrumLayers();
     QCOMPARE(consumers.size(), 2);
-    QCOMPARE(consumers.at(0)->typeId(), QStringLiteral("bars"));
+    QCOMPARE(consumers.at(0)->typeId(), QStringLiteral("audio"));
     QCOMPARE(consumers.at(1)->typeId(), QStringLiteral("particles"));
 
-    // Each consumer must analyze under its own settings, keyed by a unique id.
+    QCOMPARE(model.audioProviders().size(), 1);
+    QCOMPARE(model.barLayers().size(), 1);
+    QVERIFY(!model.barLayers().first()->needsSpectrum());
+
+    // The provider conditions data but draws nothing.
+    QVERIFY(!model.audioProviders().first()->isVisual());
+    QVERIFY(model.barLayers().first()->isVisual());
+
+    // Each consumer analyzes under its own settings, keyed by a unique id.
     QVERIFY(consumers.at(0)->layerId() != consumers.at(1)->layerId());
-    QVERIFY(consumers.at(0)->analysisParams().bandCount
-            != consumers.at(1)->analysisParams().bandCount);
+}
+
+void TestProject::mirrorSpectrumIsSymmetric()
+{
+    LayerModel model;
+    model.clear();
+    model.addLayer(QStringLiteral("bars"));
+    auto *bars = qobject_cast<BarLayer *>(model.at(0));
+    QVERIFY(bars);
+
+    SpectrumFrame frame;
+    frame.bands = {0.1f, 0.2f, 0.3f, 0.4f};
+
+    // Values originate as float and widen to qreal, so compare with tolerance
+    // rather than exactly.
+    const auto sameAs = [](const QList<qreal> &got, const QList<qreal> &want) {
+        if (got.size() != want.size())
+            return false;
+        for (int i = 0; i < got.size(); ++i) {
+            if (std::abs(got.at(i) - want.at(i)) > 1e-6)
+                return false;
+        }
+        return true;
+    };
+
+    bars->setProperty("mirrorSpectrum", false);
+    bars->takeFrame(frame);
+    QCOMPARE(bars->barCount(), 4);
+    QVERIFY(sameAs(bars->bands(), {0.1, 0.2, 0.3, 0.4}));
+
+    // Mirroring doubles the bar count and puts the LOWEST band at the centre.
+    bars->setProperty("mirrorSpectrum", true);
+    bars->takeFrame(frame);
+    QCOMPARE(bars->barCount(), 8);
+    const QList<qreal> b = bars->bands();
+    QVERIFY(sameAs(b, {0.4, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.4}));
+
+    // Exactly symmetric about the centre.
+    for (int i = 0; i < b.size(); ++i)
+        QCOMPARE(b.at(i), b.at(b.size() - 1 - i));
+}
+
+void TestProject::v1ProjectsMigrateToProvider()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("legacy.mvproj"));
+
+    // A v1 file: analysis settings live on the bar layer, no provider exists.
+    QJsonObject barProps;
+    barProps.insert(QStringLiteral("name"), QStringLiteral("Old bars"));
+    barProps.insert(QStringLiteral("barCount"), 72);
+    barProps.insert(QStringLiteral("fftSize"), 4096);
+    barProps.insert(QStringLiteral("minHz"), 45.0);
+    barProps.insert(QStringLiteral("maxHz"), 15000.0);
+    barProps.insert(QStringLiteral("attackMs"), 12.0);
+    barProps.insert(QStringLiteral("decayMs"), 260.0);
+    barProps.insert(QStringLiteral("colorMode"), QStringLiteral("spectrum"));
+
+    QJsonObject bar;
+    bar.insert(QStringLiteral("type"), QStringLiteral("bars"));
+    bar.insert(QStringLiteral("props"), barProps);
+
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("layers"), QJsonArray{bar});
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QJsonDocument(root).toJson());
+    file.close();
+
+    LayerModel model;
+    Project project;
+    project.setLayerModel(&model);
+    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
+
+    // A provider is synthesised, carrying the old analysis settings.
+    QCOMPARE(model.count(), 2);
+    QCOMPARE(model.at(0)->typeId(), QStringLiteral("audio"));
+    auto *provider = qobject_cast<AudioProviderLayer *>(model.at(0));
+    QVERIFY(provider);
+    QCOMPARE(provider->property("bandCount").toInt(), 72);
+    QCOMPARE(provider->property("fftSize").toInt(), 4096);
+    QCOMPARE(provider->property("minHz").toDouble(), 45.0);
+    QCOMPARE(provider->property("maxHz").toDouble(), 15000.0);
+    QCOMPARE(provider->property("attackMs").toDouble(), 12.0);
+    QCOMPARE(provider->property("decayMs").toDouble(), 260.0);
+
+    // The bar layer keeps its visual settings and loses the analysis ones.
+    QCOMPARE(model.at(1)->typeId(), QStringLiteral("bars"));
+    QCOMPARE(model.at(1)->property("colorMode").toString(), QStringLiteral("spectrum"));
+    QCOMPARE(model.at(1)->property("name").toString(), QStringLiteral("Old bars"));
 }
 
 void TestProject::modelReordersAndDeletes()

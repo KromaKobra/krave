@@ -55,6 +55,10 @@ public:
     /// True when this layer consumes spectrum data and must be analyzed each frame.
     virtual bool needsSpectrum() const { return false; }
 
+    /// False for layers that only condition data and draw nothing, so the canvas
+    /// knows not to look for a delegate.
+    virtual bool isVisual() const { return true; }
+
     /// Analyzer settings for this layer. Each spectrum-consuming layer gets its
     /// own analyzer, so band counts and smoothing are genuinely per-layer.
     virtual SpectrumParams analysisParams() const { return {}; }
@@ -78,21 +82,133 @@ protected:
     qreal m_layerRotation = 0.0;
 };
 
+/// Conditions the audio into the numbers the bars actually draw.
+///
+/// This exists as its own layer because "what the spectrum really is" and "what
+/// looks good" are different problems. A faithful FFT readout jitters every
+/// frame, slopes off steeply toward the treble, and never sits still. All of the
+/// shaping that fixes that lives here, in one place, shared by every bar layer
+/// bound to it -- which also means the FFT runs once per provider rather than
+/// once per bar layer.
+///
+/// It draws nothing; VisualizerCanvas has no delegate for it.
+class AudioProviderLayer : public Layer
+{
+    Q_OBJECT
+
+    // --- Resolution --------------------------------------------------------
+    Q_PROPERTY(int bandCount MEMBER m_bandCount NOTIFY changed)
+    Q_PROPERTY(int fftSize MEMBER m_fftSize NOTIFY changed)
+    Q_PROPERTY(qreal minHz MEMBER m_minHz NOTIFY changed)
+    Q_PROPERTY(qreal maxHz MEMBER m_maxHz NOTIFY changed)
+
+    // --- Conditioning ------------------------------------------------------
+    /// "rms" averages the bins in a band, "peak" takes the loudest. Peak follows
+    /// individual partials and is the main cause of frame-to-frame jitter.
+    Q_PROPERTY(QString bandMeasure MEMBER m_bandMeasure NOTIFY changed)
+    /// Lifts the treble to compensate music's natural roll-off, so the outer
+    /// bars stay active instead of sitting on the floor.
+    Q_PROPERTY(qreal tiltDbPerOctave MEMBER m_tiltDbPerOctave NOTIFY changed)
+    /// Per-band auto-gain, 0..1. Each band is referenced to its own slow-moving
+    /// AVERAGE level, so quiet bands stay as animated as loud ones.
+    Q_PROPERTY(qreal bandNormalization MEMBER m_bandNormalization NOTIFY changed)
+    Q_PROPERTY(qreal normalizationTau MEMBER m_normalizationTau NOTIFY changed)
+    Q_PROPERTY(qreal floorDb MEMBER m_floorDb NOTIFY changed)
+    Q_PROPERTY(qreal ceilingDb MEMBER m_ceilingDb NOTIFY changed)
+    /// Soft gate width above the floor; larger means emptier gaps between hits.
+    Q_PROPERTY(qreal gateDb MEMBER m_gateDb NOTIFY changed)
+    /// "linear", "log" or "power"
+    Q_PROPERTY(QString scalingCurve MEMBER m_scalingCurve NOTIFY changed)
+    Q_PROPERTY(qreal gamma MEMBER m_gamma NOTIFY changed)
+
+    // --- Motion ------------------------------------------------------------
+    Q_PROPERTY(qreal attackMs MEMBER m_attackMs NOTIFY changed)
+    Q_PROPERTY(qreal decayMs MEMBER m_decayMs NOTIFY changed)
+    /// Blends each band toward its neighbours, 0..1. Turns a comb of unrelated
+    /// spikes into a single contour.
+    Q_PROPERTY(qreal spatialSmoothing MEMBER m_spatialSmoothing NOTIFY changed)
+    /// Minimum drawn level, so idle bars stay visible.
+    Q_PROPERTY(qreal floorLevel MEMBER m_floorLevel NOTIFY changed)
+
+    // --- Live data ---------------------------------------------------------
+    Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
+    Q_PROPERTY(qreal bass READ bass NOTIFY bandsChanged)
+    Q_PROPERTY(qreal mid READ mid NOTIFY bandsChanged)
+    Q_PROPERTY(qreal treble READ treble NOTIFY bandsChanged)
+
+public:
+    explicit AudioProviderLayer(QObject *parent = nullptr);
+
+    QString typeId() const override { return QStringLiteral("audio"); }
+    bool needsSpectrum() const override { return true; }
+    bool isVisual() const override { return false; }
+
+    SpectrumParams analysisParams() const override;
+    void applyFrame(const SpectrumFrame &frame) override;
+
+    const QList<qreal> &bands() const { return m_bands; }
+    qreal bass() const { return m_bass; }
+    qreal mid() const { return m_mid; }
+    qreal treble() const { return m_treble; }
+    const SpectrumFrame &frame() const { return m_frame; }
+
+Q_SIGNALS:
+    void bandsChanged();
+
+private:
+    int m_bandCount = 48;
+    int m_fftSize = 4096;
+    qreal m_minHz = 40.0;
+    qreal m_maxHz = 14000.0;
+
+    QString m_bandMeasure = QStringLiteral("rms");
+    qreal m_tiltDbPerOctave = 0.0;
+    qreal m_bandNormalization = 0.7;
+    qreal m_normalizationTau = 3.0;
+    qreal m_floorDb = -78.0;
+    qreal m_ceilingDb = -4.0;
+    qreal m_gateDb = 8.0;
+    QString m_scalingCurve = QStringLiteral("power");
+    qreal m_gamma = 3.0;
+
+    qreal m_attackMs = 5.0;
+    qreal m_decayMs = 220.0;
+    qreal m_spatialSmoothing = 0.15;
+    qreal m_floorLevel = 0.0;
+
+    SpectrumFrame m_frame;
+    QList<qreal> m_bands;
+    qreal m_bass = 0.0;
+    qreal m_mid = 0.0;
+    qreal m_treble = 0.0;
+};
+
 /// Frequency-reactive EQ bars: the primary visualizer type.
+///
+/// Carries only how the bars LOOK. Everything about how the audio is turned into
+/// numbers lives on the AudioProviderLayer this one points at.
 class BarLayer : public Layer
 {
     Q_OBJECT
 
+    /// layerId of the AudioProviderLayer feeding this one; 0 means "the first
+    /// provider in the stack", which is what a single-provider project wants.
+    Q_PROPERTY(int providerId MEMBER m_providerId NOTIFY changed)
+
     // --- Shape -------------------------------------------------------------
-    Q_PROPERTY(int barCount MEMBER m_barCount NOTIFY changed)
     Q_PROPERTY(qreal barWidthRatio MEMBER m_barWidthRatio NOTIFY changed)
     Q_PROPERTY(qreal cornerRadius MEMBER m_cornerRadius NOTIFY changed)
     Q_PROPERTY(qreal minHeight MEMBER m_minHeight NOTIFY changed)
     Q_PROPERTY(qreal maxHeight MEMBER m_maxHeight NOTIFY changed)
 
     // --- Placement ---------------------------------------------------------
-    /// "linear", "mirrored" or "radial"
+    /// "linear", "mirrored" or "radial". Note this mirrors VERTICALLY (bars grow
+    /// both up and down); to mirror the frequency axis use `mirrorSpectrum`.
     Q_PROPERTY(QString orientation MEMBER m_orientation NOTIFY changed)
+    /// Reflects the FREQUENCY axis: lowest band at the centre, highest at both
+    /// edges. This is the symmetric skyline look, and is independent of
+    /// `orientation`.
+    Q_PROPERTY(bool mirrorSpectrum MEMBER m_mirrorSpectrum NOTIFY changed)
     /// Radial only: hole size as a fraction of the layer's smaller dimension.
     Q_PROPERTY(qreal innerRadius MEMBER m_innerRadius NOTIFY changed)
     Q_PROPERTY(bool growUpward MEMBER m_growUpward NOTIFY changed)
@@ -105,20 +221,10 @@ class BarLayer : public Layer
     /// Extra brightness applied in proportion to a bar's level, 0 = off.
     Q_PROPERTY(qreal reactiveBrightness MEMBER m_reactiveBrightness NOTIFY changed)
 
-    // --- Analysis ----------------------------------------------------------
-    Q_PROPERTY(int fftSize MEMBER m_fftSize NOTIFY changed)
-    Q_PROPERTY(qreal minHz MEMBER m_minHz NOTIFY changed)
-    Q_PROPERTY(qreal maxHz MEMBER m_maxHz NOTIFY changed)
-    Q_PROPERTY(qreal floorDb MEMBER m_floorDb NOTIFY changed)
-    Q_PROPERTY(qreal ceilingDb MEMBER m_ceilingDb NOTIFY changed)
-    /// "linear", "log" or "power"
-    Q_PROPERTY(QString scalingCurve MEMBER m_scalingCurve NOTIFY changed)
-    Q_PROPERTY(qreal gamma MEMBER m_gamma NOTIFY changed)
-    Q_PROPERTY(qreal attackMs MEMBER m_attackMs NOTIFY changed)
-    Q_PROPERTY(qreal decayMs MEMBER m_decayMs NOTIFY changed)
-
-    // --- Live data, written by SpectrumEngine each frame --------------------
+    // --- Live data, copied from the provider each frame ---------------------
+    /// Already reflected when `mirrorSpectrum` is set, so the view just draws it.
     Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
+    Q_PROPERTY(int barCount READ barCount NOTIFY bandsChanged)
     Q_PROPERTY(qreal bass READ bass NOTIFY bandsChanged)
     Q_PROPERTY(qreal mid READ mid NOTIFY bandsChanged)
     Q_PROPERTY(qreal treble READ treble NOTIFY bandsChanged)
@@ -127,21 +233,25 @@ public:
     explicit BarLayer(QObject *parent = nullptr);
 
     QString typeId() const override { return QStringLiteral("bars"); }
-    bool needsSpectrum() const override { return true; }
 
     const QList<qreal> &bands() const { return m_bands; }
+    int barCount() const { return int(m_bands.size()); }
     qreal bass() const { return m_bass; }
     qreal mid() const { return m_mid; }
     qreal treble() const { return m_treble; }
 
-    void applyFrame(const SpectrumFrame &frame) override;
-    SpectrumParams analysisParams() const override;
+    int providerId() const { return m_providerId; }
+    bool mirrorSpectrum() const { return m_mirrorSpectrum; }
+
+    /// Take a provider's frame, applying spectrum mirroring if enabled.
+    void takeFrame(const SpectrumFrame &frame);
 
 Q_SIGNALS:
     void bandsChanged();
 
 private:
-    int m_barCount = 64;
+    int m_providerId = 0;
+    bool m_mirrorSpectrum = false;
     qreal m_barWidthRatio = 0.65;
     qreal m_cornerRadius = 2.0;
     qreal m_minHeight = 0.005;
@@ -155,16 +265,6 @@ private:
     QColor m_colorA = QColor(QStringLiteral("#4cc9f0"));
     QColor m_colorB = QColor(QStringLiteral("#f72585"));
     qreal m_reactiveBrightness = 0.0;
-
-    int m_fftSize = 2048;
-    qreal m_minHz = 30.0;
-    qreal m_maxHz = 16000.0;
-    qreal m_floorDb = -72.0;
-    qreal m_ceilingDb = -6.0;
-    QString m_scalingCurve = QStringLiteral("linear");
-    qreal m_gamma = 1.0;
-    qreal m_attackMs = 10.0;
-    qreal m_decayMs = 180.0;
 
     QList<qreal> m_bands;
     qreal m_bass = 0.0;

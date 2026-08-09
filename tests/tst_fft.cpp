@@ -59,6 +59,8 @@ private Q_SLOTS:
     void analyzerFindsToneInRightBand();
     void analyzerSmoothingIsFrameRateIndependent();
     void analyzerDecaysToSilence();
+    void analyzerKeepsStateWhenParamsAreResent();
+    void bandNormalizationFlattensWithoutCrushingDynamics();
 };
 
 void TestFft::impulseGivesFlatSpectrum()
@@ -257,6 +259,128 @@ void TestFft::analyzerDecaysToSilence()
 
     for (float v : frame.bands)
         QVERIFY(v < 0.01f);
+}
+
+void TestFft::analyzerKeepsStateWhenParamsAreResent()
+{
+    // SpectrumEngine hands the parameters over on every frame. If setParams
+    // treats that as a change and rebuilds, the smoothing envelope is cleared
+    // each frame: attack/decay stop behaving as a filter and become a plain
+    // gain, and per-band auto-gain can never converge.
+    SpectrumParams params;
+    params.bandCount = 8;
+    params.attackTau = 0.0;
+    params.decayTau = 0.400;
+
+    const AudioBuffer loud = makeSine(500.0, 0.5, 48000, 0.9f);
+
+    auto runFor = [&](bool resendEachFrame) {
+        SpectrumAnalyzer analyzer;
+        analyzer.setParams(params);
+        for (int i = 0; i < 60; ++i) {
+            if (resendEachFrame)
+                analyzer.setParams(params);
+            analyzer.analyze(loud, 0.25, 1.0 / 60.0);
+        }
+        SpectrumFrame frame;
+        for (int i = 0; i < 12; ++i) { // 0.2s of silence
+            if (resendEachFrame)
+                analyzer.setParams(params);
+            frame = analyzer.analyze(AudioBuffer(), 0.0, 1.0 / 60.0);
+        }
+        return frame.bands;
+    };
+
+    const QVector<float> quiet = runFor(false);
+    const QVector<float> resent = runFor(true);
+
+    QCOMPARE(quiet.size(), resent.size());
+    for (int i = 0; i < quiet.size(); ++i) {
+        QVERIFY2(std::abs(quiet[i] - resent[i]) < 1e-5f,
+                 qPrintable(QStringLiteral("band %1: %2 without resend vs %3 with")
+                                .arg(i).arg(quiet[i]).arg(resent[i])));
+    }
+
+    // And the envelope must actually still be falling, not already at zero --
+    // otherwise the comparison above could pass on two broken runs.
+    bool anyAboveZero = false;
+    for (float v : resent)
+        anyAboveZero = anyAboveZero || v > 0.01f;
+    QVERIFY(anyAboveZero);
+}
+
+void TestFft::bandNormalizationFlattensWithoutCrushingDynamics()
+{
+    // Auto-gain should even out the level ACROSS bands while leaving each band's
+    // variation over time intact. Referencing bands to their recent peak instead
+    // of their average pins everything at full scale, which is the failure this
+    // guards against.
+    const int sampleRate = 48000;
+    const int frames = sampleRate * 3;
+    QVector<float> samples(frames * 2);
+    for (int i = 0; i < frames; ++i) {
+        const double t = double(i) / sampleRate;
+        // A loud low tone and a much quieter high tone, both pulsing.
+        const double env = 0.5 + 0.5 * std::sin(2.0 * kPi * 2.0 * t);
+        const float v = float(env * (0.6 * std::sin(2.0 * kPi * 120.0 * t)
+                                     + 0.02 * std::sin(2.0 * kPi * 4000.0 * t)));
+        samples[i * 2] = v;
+        samples[i * 2 + 1] = v;
+    }
+    const AudioBuffer buffer(std::move(samples), sampleRate, 2);
+
+    auto run = [&](double amount) {
+        SpectrumParams p;
+        p.bandCount = 16;
+        p.bandNormalization = amount;
+        p.normalizationTau = 0.5;
+        p.spatialSmoothing = 0.0;
+        p.gateDb = 0.0;
+        SpectrumAnalyzer a;
+        a.setParams(p);
+
+        QVector<QVector<float>> history;
+        for (int i = 0; i < 180; ++i) {
+            const SpectrumFrame f = a.analyze(buffer, 0.5 + i / 60.0, 1.0 / 60.0);
+            if (i >= 90) // let the reference settle first
+                history.append(f.bands);
+        }
+        return history;
+    };
+
+    auto spread = [](const QVector<QVector<float>> &h) {
+        // Difference between the most and least active band, averaged over time.
+        QVector<float> means(h.first().size(), 0.0f);
+        for (const auto &f : h)
+            for (int b = 0; b < f.size(); ++b)
+                means[b] += f[b] / h.size();
+        return *std::max_element(means.begin(), means.end())
+             - *std::min_element(means.begin(), means.end());
+    };
+
+    auto motion = [](const QVector<QVector<float>> &h) {
+        // Average per-band variation over time: the dynamics that must survive.
+        double total = 0.0;
+        for (int b = 0; b < h.first().size(); ++b) {
+            double mean = 0.0;
+            for (const auto &f : h)
+                mean += f[b];
+            mean /= h.size();
+            double var = 0.0;
+            for (const auto &f : h)
+                var += (f[b] - mean) * (f[b] - mean);
+            total += std::sqrt(var / h.size());
+        }
+        return total / h.first().size();
+    };
+
+    const auto off = run(0.0);
+    const auto on = run(0.9);
+
+    QVERIFY2(spread(on) < spread(off),
+             qPrintable(QStringLiteral("spread %1 -> %2").arg(spread(off)).arg(spread(on))));
+    QVERIFY2(motion(on) > 0.2 * motion(off),
+             qPrintable(QStringLiteral("motion %1 -> %2").arg(motion(off)).arg(motion(on))));
 }
 
 QTEST_MAIN(TestFft)

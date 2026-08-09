@@ -32,7 +32,10 @@ class Project : public QObject
 
 public:
     /// Bumped when the on-disk shape changes incompatibly.
-    static constexpr int kFormatVersion = 1;
+    ///
+    /// v2 moved all audio conditioning off BarLayer onto a dedicated
+    /// AudioProviderLayer. v1 files still load: see migrateFromV1.
+    static constexpr int kFormatVersion = 2;
 
     explicit Project(QObject *parent = nullptr);
 

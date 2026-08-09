@@ -56,6 +56,8 @@ Layer *LayerModel::createLayer(const QString &typeId, QObject *parent)
         return new TextLayer(parent);
     if (typeId == QLatin1String("particles"))
         return new ParticleLayer(parent);
+    if (typeId == QLatin1String("audio"))
+        return new AudioProviderLayer(parent);
     return nullptr;
 }
 
@@ -176,6 +178,26 @@ QVector<Layer *> LayerModel::spectrumLayers() const
     return result;
 }
 
+QVector<AudioProviderLayer *> LayerModel::audioProviders() const
+{
+    QVector<AudioProviderLayer *> result;
+    for (Layer *layer : m_layers) {
+        if (auto *p = qobject_cast<AudioProviderLayer *>(layer))
+            result.append(p);
+    }
+    return result;
+}
+
+QVector<BarLayer *> LayerModel::barLayers() const
+{
+    QVector<BarLayer *> result;
+    for (Layer *layer : m_layers) {
+        if (auto *b = qobject_cast<BarLayer *>(layer))
+            result.append(b);
+    }
+    return result;
+}
+
 void LayerModel::resetLayers(const QVector<Layer *> &layers)
 {
     beginResetModel();
@@ -196,7 +218,10 @@ void LayerModel::resetLayers(const QVector<Layer *> &layers)
 
 void LayerModel::loadDefaults()
 {
+    // A provider comes first: bar layers are useless without one, and a new user
+    // should not have to discover that they need to add it themselves.
     QVector<Layer *> defaults;
+    defaults.append(new AudioProviderLayer);
     defaults.append(new BackgroundLayer);
     defaults.append(new BarLayer);
     resetLayers(defaults);

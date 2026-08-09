@@ -101,11 +101,18 @@ Flickable {
 
             SectionHeader { text: qsTr("BARS") }
 
-            LabeledSlider {
+            Text {
                 Layout.fillWidth: true
-                label: qsTr("Bar count"); target: root.selected; propertyName: "barCount"
-                from: 4; to: 256; stepSize: 1; decimals: 0
+                wrapMode: Text.WordWrap
+                color: "#55556a"
+                font.pixelSize: 10
+                text: root.selected && root.selected.mirrorSpectrum
+                      ? qsTr("%1 bars (audio provider bands, mirrored)")
+                          .arg(root.selected.barCount)
+                      : qsTr("%1 bars, set by the audio provider's band count")
+                          .arg(root.selected ? root.selected.barCount : 0)
             }
+
             LabeledSlider {
                 Layout.fillWidth: true
                 label: qsTr("Bar width"); target: root.selected; propertyName: "barWidthRatio"
@@ -143,6 +150,19 @@ Flickable {
                 from: 0.05; to: 0.9
             }
 
+            CheckBox {
+                Layout.fillWidth: true
+                checked: root.selected ? root.selected.mirrorSpectrum : false
+                onToggled: if (root.selected) root.selected.mirrorSpectrum = checked
+                contentItem: Text {
+                    leftPadding: 22
+                    text: qsTr("Mirror spectrum (bass at centre)")
+                    color: "#c8c8d4"
+                    font.pixelSize: 11
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
             SectionHeader { text: qsTr("COLOUR") }
 
             EnumCombo {
@@ -171,32 +191,29 @@ Flickable {
                 from: 0; to: 2
             }
 
-            SectionHeader { text: qsTr("ANALYSIS") }
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                wrapMode: Text.WordWrap
+                color: "#55556a"
+                font.pixelSize: 10
+                text: qsTr("Frequency response, smoothing and dynamics live on the "
+                           + "Audio provider layer.")
+            }
+        }
 
-            EnumCombo {
-                Layout.fillWidth: true
-                label: qsTr("Scaling curve"); target: root.selected; propertyName: "scalingCurve"
-                options: [
-                    { text: qsTr("Linear"), value: "linear" },
-                    { text: qsTr("Logarithmic"), value: "log" },
-                    { text: qsTr("Power"), value: "power" }
-                ]
-            }
+        // -------------------------------------------------- audio provider
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            visible: root.selected !== null && root.selected.typeId === "audio"
+
+            SectionHeader { text: qsTr("RESOLUTION") }
+
             LabeledSlider {
                 Layout.fillWidth: true
-                visible: root.selected && root.selected.scalingCurve === "power"
-                label: qsTr("Gamma"); target: root.selected; propertyName: "gamma"
-                from: 0.2; to: 4
-            }
-            LabeledSlider {
-                Layout.fillWidth: true
-                label: qsTr("Attack (ms)"); target: root.selected; propertyName: "attackMs"
-                from: 0; to: 200; stepSize: 1; decimals: 0
-            }
-            LabeledSlider {
-                Layout.fillWidth: true
-                label: qsTr("Decay (ms)"); target: root.selected; propertyName: "decayMs"
-                from: 10; to: 1000; stepSize: 5; decimals: 0
+                label: qsTr("Band count"); target: root.selected; propertyName: "bandCount"
+                from: 4; to: 160; stepSize: 1; decimals: 0
             }
             LabeledSlider {
                 Layout.fillWidth: true
@@ -208,15 +225,89 @@ Flickable {
                 label: qsTr("Max frequency (Hz)"); target: root.selected; propertyName: "maxHz"
                 from: 2000; to: 22000; stepSize: 100; decimals: 0
             }
+
+            SectionHeader { text: qsTr("RESPONSE") }
+
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Band measure"); target: root.selected; propertyName: "bandMeasure"
+                options: [
+                    { text: qsTr("Average (smooth)"), value: "rms" },
+                    { text: qsTr("Peak (jumpy)"), value: "peak" }
+                ]
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Treble lift (dB/octave)"); target: root.selected
+                propertyName: "tiltDbPerOctave"
+                from: 0; to: 9; stepSize: 0.25; decimals: 2
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Per-band auto-gain"); target: root.selected
+                propertyName: "bandNormalization"
+                from: 0; to: 1
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                visible: root.selected && root.selected.bandNormalization > 0
+                label: qsTr("Auto-gain adapt (s)"); target: root.selected
+                propertyName: "normalizationTau"
+                from: 0.2; to: 10; stepSize: 0.1; decimals: 1
+            }
             LabeledSlider {
                 Layout.fillWidth: true
                 label: qsTr("Floor (dB)"); target: root.selected; propertyName: "floorDb"
-                from: -120; to: -20; stepSize: 1; decimals: 0
+                from: -100; to: -20; stepSize: 1; decimals: 0
             }
             LabeledSlider {
                 Layout.fillWidth: true
                 label: qsTr("Ceiling (dB)"); target: root.selected; propertyName: "ceilingDb"
                 from: -40; to: 6; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Gate (dB)"); target: root.selected; propertyName: "gateDb"
+                from: 0; to: 24; stepSize: 1; decimals: 0
+            }
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Scaling curve"); target: root.selected; propertyName: "scalingCurve"
+                options: [
+                    { text: qsTr("Power"), value: "power" },
+                    { text: qsTr("Linear"), value: "linear" },
+                    { text: qsTr("Logarithmic"), value: "log" }
+                ]
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                visible: root.selected && root.selected.scalingCurve === "power"
+                label: qsTr("Gamma"); target: root.selected; propertyName: "gamma"
+                from: 0.2; to: 4
+            }
+
+            SectionHeader { text: qsTr("MOTION") }
+
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Attack (ms)"); target: root.selected; propertyName: "attackMs"
+                from: 0; to: 300; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Decay (ms)"); target: root.selected; propertyName: "decayMs"
+                from: 10; to: 1500; stepSize: 5; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Neighbour smoothing"); target: root.selected
+                propertyName: "spatialSmoothing"
+                from: 0; to: 1
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Resting level"); target: root.selected; propertyName: "floorLevel"
+                from: 0; to: 0.3; decimals: 3
             }
         }
 

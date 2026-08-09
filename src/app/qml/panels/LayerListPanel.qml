@@ -181,6 +181,12 @@ ColumnLayout {
 
         AddButton {
             Layout.fillWidth: true
+            text: qsTr("+ Audio")
+            onClicked: layerModel.addLayer("audio")
+        }
+
+        AddButton {
+            Layout.fillWidth: true
             text: qsTr("+ Bars")
             onClicked: layerModel.addLayer("bars")
         }

@@ -155,6 +155,30 @@ void SpectrumEngine::applyResults(const QVector<AnalysisResult> &results)
             }
         }
     }
+
+    // Fan the providers' output out to the bar layers bound to them. Doing it
+    // here rather than analysing per bar layer means the FFT cost scales with
+    // the number of providers, not the number of things drawing them.
+    const QVector<AudioProviderLayer *> providers = m_model->audioProviders();
+    if (providers.isEmpty())
+        return;
+
+    for (BarLayer *bars : m_model->barLayers()) {
+        AudioProviderLayer *source = nullptr;
+        if (bars->providerId() != 0) {
+            for (AudioProviderLayer *p : providers) {
+                if (p->layerId() == bars->providerId()) {
+                    source = p;
+                    break;
+                }
+            }
+        }
+        // providerId 0, or a provider that has since been deleted, falls back to
+        // the first one in the stack.
+        if (!source)
+            source = providers.first();
+        bars->takeFrame(source->frame());
+    }
 }
 
 void SpectrumEngine::tick()

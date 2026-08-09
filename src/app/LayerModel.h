@@ -54,6 +54,12 @@ public:
     /// Every layer that needs per-frame spectrum data, whatever its type.
     QVector<Layer *> spectrumLayers() const;
 
+    /// The audio providers in the stack, in z-order.
+    QVector<AudioProviderLayer *> audioProviders() const;
+
+    /// The bar layers in the stack, which consume a provider's output.
+    QVector<BarLayer *> barLayers() const;
+
     /// Build a layer of the given type without inserting it. Used by project load.
     static Layer *createLayer(const QString &typeId, QObject *parent = nullptr);
 
