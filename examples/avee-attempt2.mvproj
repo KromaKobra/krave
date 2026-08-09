@@ -1,0 +1,93 @@
+{
+    "canvas": {
+        "color": "#ff0a0a14",
+        "height": 1080,
+        "width": 1920
+    },
+    "format": "music-visualizer-project",
+    "layers": [
+        {
+            "props": {
+                "amplitudeMode": "db",
+                "attackMs": 5,
+                "averageCount": 1,
+                "bandCount": 34,
+                "bandMeasure": "rms",
+                "bandNormalization": 0.7,
+                "blendMode": "normal",
+                "ceilingDb": -12,
+                "decayMs": 220,
+                "floorDb": -79,
+                "floorLevel": 0.012,
+                "gamma": 3,
+                "gateDb": 3,
+                "hzLinearFactor": 0,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "linearGain": 30,
+                "lowFreqMagnitude": 0.2,
+                "maxHz": 400,
+                "minHz": 10,
+                "name": "Audio provider",
+                "normalizationTau": 3,
+                "posX": 0.5,
+                "posY": 0.5,
+                "scalingCurve": "power",
+                "sizeH": 1,
+                "sizeW": 1,
+                "smoothMs": 60,
+                "smoothingMode": "attackDecay",
+                "spatialSmoothing": 0,
+                "tiltDbPerOctave": 0,
+                "windowMs": 85
+            },
+            "type": "audio"
+        },
+        {
+            "props": {
+                "blendMode": "normal",
+                "color": "#ff0a0a14",
+                "fillMode": "crop",
+                "imageSource": "",
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "Backdrop",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeH": 1,
+                "sizeW": 1
+            },
+            "type": "background"
+        },
+        {
+            "props": {
+                "barWidthRatio": 1,
+                "blendMode": "normal",
+                "colorA": "#ffe8ecff",
+                "colorB": "#ffe8ecff",
+                "colorMode": "solid",
+                "cornerRadius": 0,
+                "growUpward": true,
+                "innerRadius": 0.35,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "maxHeight": 0.95,
+                "minHeight": 0.02,
+                "mirrorSpectrum": true,
+                "name": "Skyline",
+                "orientation": "linear",
+                "posX": 0.5,
+                "posY": 0.8,
+                "providerId": 0,
+                "reactiveBrightness": 0,
+                "sizeH": 0.4,
+                "sizeW": 1
+            },
+            "type": "bars"
+        }
+    ],
+    "version": 2
+}

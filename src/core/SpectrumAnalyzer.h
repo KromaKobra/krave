@@ -56,7 +56,21 @@ enum class SmoothingMode
 /// and shares its output with every bar layer bound to it.
 struct SpectrumParams
 {
-    int fftSize = 4096;
+    /// True analysis window, in samples. This alone sets frequency resolution:
+    /// a pure tone spreads over roughly 2 * sampleRate / windowSamples Hz.
+    ///
+    /// Deliberately NOT constrained to a power of two. The transform is zero
+    /// padded up to one internally, so any window length is available and
+    /// resolution can be dialled continuously. Rounding the window itself to a
+    /// power of two would quantise resolution in factor-of-two jumps -- 4096
+    /// samples gives ~23 Hz and 8192 gives ~12 Hz, with nothing in between.
+    int windowSamples = 4096;
+
+    /// Zero-padding factor. Padding does not improve resolution, but it places
+    /// more bins under the same peak, which lets the per-band interpolation
+    /// locate it smoothly instead of in bin-sized steps.
+    int padFactor = 2;
+
     int bandCount = 48;
     double minHz = 40.0;
     double maxHz = 14000.0;
@@ -180,6 +194,8 @@ private:
 
     SpectrumParams m_params;
     std::unique_ptr<Fft> m_fft;
+    int m_fftSize = 0;      ///< padded transform size, a power of two
+    int m_windowLen = 0;    ///< true window length inside it
 
     QVector<float> m_window;   ///< Hann coefficients
     QVector<float> m_frame;    ///< windowed mono samples

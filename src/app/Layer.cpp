@@ -19,10 +19,11 @@ AudioProviderLayer::AudioProviderLayer(QObject *parent)
 SpectrumParams AudioProviderLayer::analysisParams() const
 {
     SpectrumParams p;
-    // Window length is authored in milliseconds because that is what actually
-    // matters perceptually; the analyzer rounds it to a power of two. 48 kHz is
-    // assumed here only to pick the size -- the band layout uses the real rate.
-    p.fftSize = int(std::lround(m_windowMs * 0.001 * 48000.0));
+    // Window length is authored in milliseconds because that is what sets
+    // frequency resolution, and it is not rounded to a power of two -- the
+    // analyzer zero-pads instead. 48 kHz is assumed here only to convert the
+    // duration; the band layout uses the real rate.
+    p.windowSamples = int(std::lround(m_windowMs * 0.001 * 48000.0));
     p.bandCount = std::max(1, m_bandCount);
     p.minHz = m_minHz;
     p.maxHz = m_maxHz;

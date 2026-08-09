@@ -35,10 +35,16 @@ SpectrumAnalyzer::SpectrumAnalyzer()
 void SpectrumAnalyzer::setParams(const SpectrumParams &params)
 {
     SpectrumParams p = params;
-    p.fftSize = std::clamp(nextPowerOfTwo(std::max(64, p.fftSize)), 64, 16384);
+    p.windowSamples = std::clamp(p.windowSamples, 64, 1 << 17);
+    p.padFactor = std::clamp(p.padFactor, 1, 8);
+    p.averageCount = std::clamp(p.averageCount, 1, 32);
     p.bandCount = std::clamp(p.bandCount, 1, 512);
-    p.minHz = std::max(1.0, p.minHz);
-    p.maxHz = std::max(p.minHz * 1.01, p.maxHz);
+    // minHz may be NEGATIVE. Bands below the first usable bin all collapse onto
+    // it and render as a flat margin at the outer edge of the display, which is
+    // how the reference visualizer places its lowest audible band inset from the
+    // edge rather than at it.
+    p.minHz = std::clamp(p.minHz, -20000.0, 20000.0);
+    p.maxHz = std::max(p.minHz + 1.0, p.maxHz);
     p.spatialSmoothing = std::clamp(p.spatialSmoothing, 0.0, 1.0);
     p.floorLevel = std::clamp(p.floorLevel, 0.0, 1.0);
     p.bandNormalization = std::clamp(p.bandNormalization, 0.0, 1.0);
@@ -48,7 +54,8 @@ void SpectrumAnalyzer::setParams(const SpectrumParams &params)
     // unconditionally would clear the smoothing envelope and the auto-gain
     // reference every frame, which silently turns attack/decay into a plain
     // gain and prevents auto-gain from ever converging.
-    const bool structural = p.fftSize != m_params.fftSize
+    const bool structural = p.windowSamples != m_params.windowSamples
+                         || p.padFactor != m_params.padFactor
                          || p.bandCount != m_params.bandCount;
     const bool relayout = structural
                        || p.minHz != m_params.minHz
@@ -71,19 +78,24 @@ void SpectrumAnalyzer::reset()
 
 void SpectrumAnalyzer::rebuild()
 {
-    const int n = m_params.fftSize;
+    m_windowLen = m_params.windowSamples;
+    m_fftSize = nextPowerOfTwo(m_windowLen * m_params.padFactor);
 
-    m_fft = std::make_unique<Fft>(n);
+    m_fft = std::make_unique<Fft>(m_fftSize);
 
-    m_window.resize(n);
-    for (int i = 0; i < n; ++i)
-        m_window[i] = float(0.5 * (1.0 - std::cos(2.0 * kPi * double(i) / double(n - 1))));
+    // The Hann taper covers only the real window; the rest of the buffer stays
+    // zero, so resolution follows windowSamples while the padding just adds
+    // interpolated bins.
+    m_window.resize(m_windowLen);
+    for (int i = 0; i < m_windowLen; ++i)
+        m_window[i] = float(0.5 * (1.0 - std::cos(2.0 * kPi * double(i)
+                                                  / double(m_windowLen - 1))));
 
-    m_frame.resize(n);
-    m_scratchRe.resize(n);
-    m_scratchIm.resize(n);
-    m_magnitudes.resize(n / 2);
-    m_power.resize(n / 2);
+    m_frame.assign(m_fftSize, 0.0f);
+    m_scratchRe.resize(m_fftSize);
+    m_scratchIm.resize(m_fftSize);
+    m_magnitudes.resize(m_fftSize / 2);
+    m_power.resize(m_fftSize / 2);
 
     m_smoothed.assign(m_params.bandCount, 0.0f);
     m_raw.assign(m_params.bandCount, 0.0f);
@@ -101,20 +113,29 @@ void SpectrumAnalyzer::layoutBands(int sampleRate)
 {
     // Band edges depend on the sample rate. Spacing is logarithmic: octaves get
     // equal screen width, which is how people actually hear pitch.
-    const int n = m_params.fftSize;
-    const int bins = n / 2;
-    const double binsPerHz = double(n) / double(sampleRate);
-    const double logMin = std::log(m_params.minHz);
-    const double logMax = std::log(m_params.maxHz);
+    // Bin spacing comes from the PADDED size, so padding buys finer band
+    // placement even though it does not change resolution.
+    const int bins = m_fftSize / 2;
+    const double binsPerHz = double(m_fftSize) / double(sampleRate);
     const int count = m_params.bandCount;
+
+    // Logarithmic placement is undefined at or below zero, and minHz is allowed
+    // to be negative. Clamp the endpoints used for the log term only; when the
+    // blend is fully linear the log term is never evaluated.
+    const double logLo = std::max(1e-3, m_params.minHz);
+    const double logHi = std::max(logLo * 1.01, m_params.maxHz);
+    const double logMin = std::log(logLo);
+    const double logMax = std::log(logHi);
 
     const double k = std::clamp(m_params.hzLinearFactor, 0.0, 1.0);
 
     // Band edge for fraction t across the display, blended between logarithmic
     // and linear placement.
     const auto edgeHz = [&](double t) {
-        const double logHz = std::exp(logMin + (logMax - logMin) * t);
         const double linHz = m_params.minHz + (m_params.maxHz - m_params.minHz) * t;
+        if (k >= 1.0)
+            return linHz;
+        const double logHz = std::exp(logMin + (logMax - logMin) * t);
         return logHz * (1.0 - k) + linHz * k;
     };
 
@@ -128,12 +149,15 @@ void SpectrumAnalyzer::layoutBands(int sampleRate)
 
         m_bandLo[b] = float(lo);
         m_bandHi[b] = float(hi);
-        m_centreHz[b] = float(k >= 0.5 ? 0.5 * (f0 + f1) : std::sqrt(f0 * f1));
+        // Geometric centre is only meaningful for positive, log-spaced edges.
+        m_centreHz[b] = float((k >= 0.5 || f0 <= 0.0) ? std::max(0.0, 0.5 * (f0 + f1))
+                                                      : std::sqrt(f0 * f1));
 
         // Tilt is applied per band rather than per bin: the correction only
         // needs to follow the band layout, and this keeps it out of the inner
         // loop entirely.
-        const double octaves = std::log2(std::max(1e-6, double(m_centreHz[b]) / m_params.minHz));
+        const double tiltRefHz = std::max(1e-3, m_params.minHz);
+        const double octaves = std::log2(std::max(1e-6, double(m_centreHz[b]) / tiltRefHz));
         double gainDb = m_params.tiltDbPerOctave * octaves;
 
         // Low-frequency ramp, folded into the same per-band gain.
@@ -159,7 +183,6 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
     if (sampleRate != m_builtForRate)
         layoutBands(sampleRate);
 
-    const int n = m_params.fftSize;
     const int count = m_params.bandCount;
     const float attack = blendFactor(m_params.attackTau, dt);
     const float decay = blendFactor(m_params.decayTau, dt);
@@ -181,15 +204,17 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
     // timestamp, averaged in the power domain. readMono zero-pads the edges.
     const qint64 centre = buffer.frameForTime(timeSeconds);
     const int passes = std::max(1, m_params.averageCount);
-    const int hop = n / 2;
-    const int bins = n / 2;
+    const int hop = m_windowLen / 2;
+    const int bins = m_fftSize / 2;
 
     std::fill(m_power.begin(), m_power.end(), 0.0f);
 
     for (int p = 0; p < passes; ++p) {
         const qint64 offset = qint64(p - (passes - 1) / 2) * hop;
-        buffer.readMono(centre - n / 2 + offset, m_frame.data(), n);
-        for (int i = 0; i < n; ++i)
+        // Only the leading windowLen samples are filled; the padding beyond
+        // stays zero from rebuild() and must not be disturbed.
+        buffer.readMono(centre - m_windowLen / 2 + offset, m_frame.data(), m_windowLen);
+        for (int i = 0; i < m_windowLen; ++i)
             m_frame[i] *= m_window[i];
 
         m_fft->magnitudes(m_frame.constData(), m_magnitudes.data(),
@@ -205,7 +230,9 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
 
     // Normalize for window length and the Hann window's coherent gain, so the
     // dB scale means the same thing regardless of fftSize.
-    const float norm = 2.0f / (float(n) * 0.5f);
+    // Coherent gain of the Hann taper over the TRUE window, so the amplitude
+    // scale does not shift when the padding factor changes.
+    const float norm = 2.0f / (float(m_windowLen) * 0.5f);
     const double span = m_params.ceilingDb - m_params.floorDb;
     const double invSpan = span > 0.0 ? 1.0 / span : 0.0;
 

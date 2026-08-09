@@ -60,6 +60,7 @@ private Q_SLOTS:
     void analyzerSmoothingIsFrameRateIndependent();
     void analyzerDecaysToSilence();
     void analyzerKeepsStateWhenParamsAreResent();
+    void windowLengthSetsResolutionContinuously();
     void bandNormalizationFlattensWithoutCrushingDynamics();
 };
 
@@ -307,6 +308,66 @@ void TestFft::analyzerKeepsStateWhenParamsAreResent()
     for (float v : resent)
         anyAboveZero = anyAboveZero || v > 0.01f;
     QVERIFY(anyAboveZero);
+}
+
+void TestFft::windowLengthSetsResolutionContinuously()
+{
+    // How wide a pure tone appears is set by the analysis window, and the window
+    // is zero-padded rather than rounded to a power of two. Rounding would
+    // quantise resolution into factor-of-two jumps, making it impossible to dial
+    // a peak to a specific width.
+    const AudioBuffer tone = makeSine(50.0, 2.0, 48000, 0.8f);
+
+    // Measure the tone's width in Hz at half maximum.
+    auto fwhmHz = [&](int windowSamples) {
+        SpectrumParams p;
+        p.windowSamples = windowSamples;
+        p.bandCount = 400;
+        p.minHz = 0.1;
+        p.maxHz = 400.0;
+        p.hzLinearFactor = 1.0;         // linear, so band index maps to Hz evenly
+        p.amplitude = AmplitudeMode::Linear;
+        p.linearGain = 1.0;
+        p.curve = ScalingCurve::Linear;
+        p.spatialSmoothing = 0.0;
+        p.gateDb = 0.0;
+        p.attackTau = 0.0;
+        p.decayTau = 0.0;
+
+        SpectrumAnalyzer a;
+        a.setParams(p);
+        const SpectrumFrame f = a.analyze(tone, 1.0, 1.0 / 60.0);
+
+        const int peak = int(std::max_element(f.bands.begin(), f.bands.end())
+                             - f.bands.begin());
+        const float half = f.bands[peak] * 0.5f;
+        int lo = peak, hi = peak;
+        while (lo > 0 && f.bands[lo] > half)
+            --lo;
+        while (hi < f.bands.size() - 1 && f.bands[hi] > half)
+            ++hi;
+        const double hzPerBand = (p.maxHz - p.minHz) / p.bandCount;
+        return (hi - lo) * hzPerBand;
+    };
+
+    // A longer window must give a narrower peak, roughly 2*sampleRate/window.
+    const double w4096 = fwhmHz(4096);
+    const double w8192 = fwhmHz(8192);
+    QVERIFY2(w8192 < w4096 * 0.7,
+             qPrintable(QStringLiteral("4096 -> %1 Hz, 8192 -> %2 Hz").arg(w4096).arg(w8192)));
+
+    // The point of zero padding: a window BETWEEN two powers of two must give a
+    // width between them, rather than snapping to one of them.
+    const double w5486 = fwhmHz(5486);
+    QVERIFY2(w5486 < w4096 && w5486 > w8192,
+             qPrintable(QStringLiteral("4096 -> %1, 5486 -> %2, 8192 -> %3 Hz")
+                            .arg(w4096).arg(w5486).arg(w8192)));
+
+    // And it should land near the theoretical 2*sr/window for a Hann taper.
+    const double expected = 2.0 * 48000.0 / 5486.0;
+    QVERIFY2(std::abs(w5486 - expected) < 0.5 * expected,
+             qPrintable(QStringLiteral("5486 -> %1 Hz, expected near %2")
+                            .arg(w5486).arg(expected)));
 }
 
 void TestFft::bandNormalizationFlattensWithoutCrushingDynamics()
