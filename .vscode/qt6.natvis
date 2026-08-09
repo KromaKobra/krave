@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debugger visualizers for the Qt 6 types this project handles most.
+
+  Neither Qt nor the C++ extension ships these, so without them QString shows as
+  a raw QArrayDataPointer and QList shows its internals rather than its elements.
+  Referenced from launch.json via "visualizerFile"; delete both if unwanted.
+-->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+  <Type Name="QString">
+    <DisplayString>{d.ptr,[d.size]su}</DisplayString>
+    <StringView>d.ptr,[d.size]su</StringView>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">d.size</Item>
+      <ArrayItems>
+        <Size>d.size</Size>
+        <ValuePointer>d.ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="QByteArray">
+    <DisplayString>{d.ptr,[d.size]s}</DisplayString>
+    <StringView>d.ptr,[d.size]s</StringView>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">d.size</Item>
+      <ArrayItems>
+        <Size>d.size</Size>
+        <ValuePointer>d.ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <!-- Covers QVector too: in Qt 6 it is an alias for QList. -->
+  <Type Name="QList&lt;*&gt;">
+    <DisplayString>{{ size = {d.size} }}</DisplayString>
+    <Expand>
+      <Item Name="[size]" ExcludeView="simple">d.size</Item>
+      <ArrayItems>
+        <Size>d.size</Size>
+        <ValuePointer>d.ptr</ValuePointer>
+      </ArrayItems>
+    </Expand>
+  </Type>
+
+  <Type Name="QUrl">
+    <DisplayString>{d->url}</DisplayString>
+  </Type>
+
+  <Type Name="QColor">
+    <DisplayString Condition="cspec == 1">
+      RGB({ct.argb.red / 257},{ct.argb.green / 257},{ct.argb.blue / 257})
+    </DisplayString>
+    <DisplayString>QColor(spec={cspec})</DisplayString>
+  </Type>
+
+  <Type Name="QSize">
+    <DisplayString>{{ {wd} x {ht} }}</DisplayString>
+  </Type>
+
+  <Type Name="QPoint">
+    <DisplayString>{{ {xp}, {yp} }}</DisplayString>
+  </Type>
+
+  <Type Name="QRect">
+    <DisplayString>{{ ({x1}, {y1}) {x2 - x1 + 1} x {y2 - y1 + 1} }}</DisplayString>
+  </Type>
+
+  <!-- Project types: the ones worth seeing at a glance in a watch window. -->
+  <Type Name="mv::AudioBuffer">
+    <DisplayString>{{ {m_frameCount} frames, {m_sampleRate} Hz, {m_channels} ch }}</DisplayString>
+    <Expand>
+      <Item Name="[duration s]">m_frameCount / (double)m_sampleRate</Item>
+      <Item Name="[samples]">m_samples</Item>
+    </Expand>
+  </Type>
+
+  <Type Name="mv::SpectrumFrame">
+    <DisplayString>{{ bass={bass} mid={mid} treble={treble} }}</DisplayString>
+    <Expand>
+      <Item Name="[bands]">bands</Item>
+      <Item Name="[bass]">bass</Item>
+      <Item Name="[mid]">mid</Item>
+      <Item Name="[treble]">treble</Item>
+    </Expand>
+  </Type>
+
+</AutoVisualizer>

@@ -1,0 +1,137 @@
+{
+    // Launch configurations for the music visualizer.
+    //
+    // Every config puts Qt's bin directory on PATH -- the app links against
+    // Qt6Core.dll and friends, which live there and are not on the system PATH.
+    // Without it the process dies at startup with no message.
+    //
+    // cwd is the workspace root so relative paths like "media/testtone.mp3" and
+    // "examples/neon.mvproj" resolve the way they do from the shell.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch editor",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (debug)",
+            "program": "${workspaceFolder}/build/Debug/bin/musicvisualizer.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+                // QML binding loops and type errors are already reported by
+                // default. Do not add QT_LOGGING_RULES=qt.qml.*=true here: it
+                // turns on import tracing and buries them.
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis",
+            "symbolSearchPath": "C:\\Qt\\6.8.3\\msvc2022_64\\bin"
+        },
+        {
+            "name": "Launch editor (open a track…)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (debug)",
+            "program": "${workspaceFolder}/build/Debug/bin/musicvisualizer.exe",
+            "args": [
+                "--project", "${input:projectFile}",
+                "--audio", "${input:audioFile}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis"
+        },
+        {
+            "name": "Render headless (no window)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (debug)",
+            "program": "${workspaceFolder}/build/Debug/bin/musicvisualizer.exe",
+            "args": [
+                "--render",
+                "--audio", "${input:audioFile}",
+                "--project", "${input:projectFile}",
+                "--out", "${input:outputFile}",
+                "--fps", "${input:fps}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis"
+        },
+        {
+            "name": "Launch editor (release)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (release)",
+            "program": "${workspaceFolder}/build/RelWithDebInfo/bin/musicvisualizer.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis"
+        },
+        {
+            "name": "Debug tst_fft",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (debug)",
+            "program": "${workspaceFolder}/build/Debug/bin/tst_fft.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis"
+        },
+        {
+            "name": "Debug tst_project",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "preLaunchTask": "build (debug)",
+            "program": "${workspaceFolder}/build/Debug/bin/tst_project.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "environment": [
+                { "name": "PATH", "value": "C:\\Qt\\6.8.3\\msvc2022_64\\bin;${env:PATH}" }
+            ],
+            "visualizerFile": "${workspaceFolder}/.vscode/qt6.natvis"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "audioFile",
+            "type": "promptString",
+            "description": "Audio track (mp3, wav, flac, aac, m4a, ogg)",
+            "default": "media/testtone.mp3"
+        },
+        {
+            "id": "projectFile",
+            "type": "promptString",
+            "description": "Visualizer project (.mvproj)",
+            "default": "examples/neon.mvproj"
+        },
+        {
+            "id": "outputFile",
+            "type": "promptString",
+            "description": "Output video (.mp4 or .mov)",
+            "default": "media/out.mp4"
+        },
+        {
+            "id": "fps",
+            "type": "pickString",
+            "description": "Frame rate",
+            "options": ["24", "30", "60"],
+            "default": "30"
+        }
+    ]
+}

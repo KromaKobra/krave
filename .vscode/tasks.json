@@ -1,0 +1,78 @@
+{
+    // Build tasks, referenced as preLaunchTask from launch.json.
+    //
+    // These shell out to scripts/build.ps1 rather than calling cmake directly:
+    // cmake and ninja live inside the VS Build Tools and are not on PATH, and
+    // Ninja needs the MSVC environment. The script handles both.
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build (debug)",
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/build.ps1",
+                "-Config", "Debug"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
+            // $msCompile turns MSVC diagnostics into clickable entries in the
+            // Problems panel.
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "reveal": "silent",
+                "clear": true,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "build (release)",
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/build.ps1",
+                "-Config", "RelWithDebInfo"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": "$msCompile",
+            "presentation": { "reveal": "silent", "clear": true, "panel": "shared" }
+        },
+        {
+            "label": "build and test",
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/build.ps1",
+                "-Config", "Debug",
+                "-Test"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": "$msCompile",
+            "presentation": { "reveal": "always", "clear": true, "panel": "shared" }
+        },
+        {
+            "label": "clean rebuild (debug)",
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}/scripts/build.ps1",
+                "-Config", "Debug",
+                "-Clean"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": "build",
+            "problemMatcher": "$msCompile",
+            "presentation": { "reveal": "always", "clear": true, "panel": "shared" }
+        }
+    ]
+}
