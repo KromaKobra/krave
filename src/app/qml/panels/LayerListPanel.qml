@@ -7,11 +7,10 @@ import QtQuick.Layouts
 ColumnLayout {
     id: root
 
-    spacing: 6
+    /// Fixed row height; the list sizes itself from this and the row count.
+    readonly property int rowHeight: 28
 
-    function modelRow(visualRow) {
-        return layerModel.count - 1 - visualRow
-    }
+    spacing: 6
 
     RowLayout {
         Layout.fillWidth: true
@@ -91,7 +90,10 @@ ColumnLayout {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 1
-            height: Math.min(contentHeight, parent.height - 2)
+            // Derived from the row count, not from contentHeight: a view only
+            // realizes the delegates that fit, so sizing to contentHeight makes
+            // height depend on itself and Qt reports a binding loop.
+            height: Math.min(layerModel.count * root.rowHeight, parent.height - 2)
 
             clip: true
             model: layerModel
@@ -106,7 +108,7 @@ ColumnLayout {
                 required property bool layerVisible
 
                 width: list.width
-                height: 28
+                height: root.rowHeight
                 color: index === layerModel.selectedIndex ? "#252538" : "transparent"
 
                 RowLayout {
