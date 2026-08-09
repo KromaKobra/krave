@@ -23,6 +23,31 @@ enum class BandMeasure
     Rms   ///< energy average. Much steadier, and what looks good on screen.
 };
 
+/// How band magnitude becomes a 0..1 level.
+enum class AmplitudeMode
+{
+    /// Normalized decibels between a floor and a ceiling. Perceptual, and it
+    /// keeps every band visible -- but it lifts the noise between partials just
+    /// as much as the partials, so the row reads as one continuous mound.
+    Decibel,
+    /// Raw magnitude times a gain. Quiet content stays near zero, so individual
+    /// partials stand out as sharp spikes over a flat floor. This is what
+    /// Avee-style visualizers do and it is the difference between "a mound" and
+    /// "a row of peaks".
+    Linear
+};
+
+/// How the temporal envelope follows the signal.
+enum class SmoothingMode
+{
+    /// Separate rise and fall time constants.
+    AttackDecay,
+    /// One time constant in both directions. Reads as more organic: an
+    /// asymmetric envelope makes every bar fall at the same rate regardless of
+    /// the music, which looks mechanical.
+    Symmetric
+};
+
 /// Everything that turns raw audio into numbers a bar layer can draw.
 ///
 /// These are deliberately "how it should look" controls rather than a faithful
@@ -35,6 +60,21 @@ struct SpectrumParams
     int bandCount = 48;
     double minHz = 40.0;
     double maxHz = 14000.0;
+
+    /// 0 = logarithmic band spacing (equal width per octave), 1 = linear
+    /// (equal width per Hz). Linear over a narrow low range is what resolves a
+    /// bass line's individual harmonics into separate spikes; logarithmic over a
+    /// wide range smears them together.
+    double hzLinearFactor = 0.0;
+
+    /// How many overlapping windows are averaged per frame (Welch's method).
+    ///
+    /// A single FFT is a high-variance estimate: the noise between partials
+    /// jumps around from frame to frame and the display looks like grass.
+    /// Averaging several half-overlapped windows cuts that variance roughly by
+    /// this factor, which is what leaves a flat floor with clean peaks standing
+    /// on it. Costs one extra transform each.
+    int averageCount = 1;
 
     /// Bins inside a band are averaged by default. Peak picks up any stray
     /// partial or noise spike and is the single biggest source of jitter.
@@ -60,6 +100,23 @@ struct SpectrumParams
     /// ride over individual beats, short enough to track a new section.
     double normalizationTau = 3.0;
 
+    AmplitudeMode amplitude = AmplitudeMode::Decibel;
+
+    /// Linear mode only: magnitude is multiplied by this to reach 0..1.
+    double linearGain = 30.0;
+
+    /// Gain applied at the very bottom of the frequency range, ramping linearly
+    /// to 1.0 at the top. 1.0 leaves the response alone.
+    ///
+    /// Bass dominates almost any mix, so without this the lowest bands tower
+    /// over everything and the rest of the display is a footnote. Pulling the
+    /// bottom down redistributes the picture across the whole width. This is a
+    /// straight ramp across BAND INDEX, unlike tiltDbPerOctave which works in
+    /// octaves -- over a narrow linear range there is barely an octave to work
+    /// with and a per-octave tilt has almost no effect.
+    double lowFreqMagnitude = 1.0;
+
+    // Decibel mode only.
     double floorDb = -78.0;
     double ceilingDb = -4.0;
 
@@ -73,8 +130,11 @@ struct SpectrumParams
     /// Smoothing expressed as TIME CONSTANTS in seconds, deliberately not as
     /// per-frame factors. A per-frame factor would make a 30 fps export decay at
     /// half the rate of a 60 Hz preview and the two would visibly disagree.
+    SmoothingMode smoothing = SmoothingMode::AttackDecay;
     double attackTau = 0.005;
     double decayTau = 0.220;
+    /// Symmetric mode only: one time constant for both directions.
+    double smoothTau = 0.060;
 
     /// Blends each band toward its neighbours, 0..1. Turns a comb of unrelated
     /// spikes into a contour that reads as one shape.
@@ -126,9 +186,13 @@ private:
     QVector<float> m_scratchRe;
     QVector<float> m_scratchIm;
     QVector<float> m_magnitudes;
+    QVector<float> m_power;    ///< accumulator for Welch averaging
 
-    QVector<int> m_bandStart;   ///< first FFT bin of each band
-    QVector<int> m_bandEnd;     ///< one past the last bin of each band
+    // Fractional bin edges. Integer edges would make neighbouring bands cover
+    // different whole numbers of bins whenever the bands are comparable in width
+    // to a bin, stamping a fixed comb pattern across the display.
+    QVector<float> m_bandLo;    ///< first bin of each band, fractional
+    QVector<float> m_bandHi;    ///< last bin of each band, fractional
     QVector<float> m_bandGainDb;///< per-band tilt, precomputed
     QVector<float> m_centreHz;
     QVector<float> m_raw;       ///< pre-smoothing values, reused each frame

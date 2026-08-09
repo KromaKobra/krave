@@ -1,0 +1,70 @@
+{
+    "format": "music-visualizer-project",
+    "version": 2,
+    "canvas": { "width": 1920, "height": 1080, "color": "#ff000000" },
+    "layers": [
+        {
+            "type": "audio",
+            "props": {
+                "name": "Audio provider",
+                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
+                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
+
+                "bandCount": 124,
+                "windowMs": 85,
+                "minHz": 0.1,
+                "maxHz": 1200,
+                "hzLinearFactor": 1.0,
+
+                "bandMeasure": "rms",
+                "averageCount": 9,
+                "amplitudeMode": "linear",
+                "linearGain": 8.0,
+                "lowFreqMagnitude": 0.5,
+                "tiltDbPerOctave": 0.0,
+                "bandNormalization": 0.0,
+                "gateDb": 0.0,
+                "scalingCurve": "power",
+                "gamma": 1.3,
+
+                "smoothingMode": "symmetric",
+                "smoothMs": 60,
+                "spatialSmoothing": 0.0,
+                "floorLevel": 0.0
+            }
+        },
+        {
+            "type": "background",
+            "props": {
+                "name": "Backdrop",
+                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
+                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
+                "color": "#ff000000", "imageSource": "", "fillMode": "crop"
+            }
+        },
+        {
+            "type": "bars",
+            "props": {
+                "name": "Spectrum",
+                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
+                "posX": 0.5, "posY": 0.76, "sizeW": 1.0, "sizeH": 0.48,
+                "layerRotation": 0,
+
+                "providerId": 0,
+                "mirrorSpectrum": true,
+                "orientation": "linear",
+                "growUpward": true,
+                "barWidthRatio": 1.0,
+                "cornerRadius": 0,
+                "minHeight": 0.196,
+                "maxHeight": 1.0,
+                "innerRadius": 0.35,
+
+                "colorMode": "solid",
+                "colorA": "#ffffffff",
+                "colorB": "#ffffffff",
+                "reactiveBrightness": 0
+            }
+        }
+    ]
+}

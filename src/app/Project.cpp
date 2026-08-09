@@ -67,11 +67,10 @@ Layer *deserializeLayer(const QJsonObject &obj)
 QJsonArray migrateFromV1(const QJsonArray &layers)
 {
     static const QStringList moved = {
-        QStringLiteral("fftSize"),      QStringLiteral("minHz"),
-        QStringLiteral("maxHz"),        QStringLiteral("floorDb"),
-        QStringLiteral("ceilingDb"),    QStringLiteral("scalingCurve"),
-        QStringLiteral("gamma"),        QStringLiteral("attackMs"),
-        QStringLiteral("decayMs"),
+        QStringLiteral("minHz"),        QStringLiteral("maxHz"),
+        QStringLiteral("floorDb"),      QStringLiteral("ceilingDb"),
+        QStringLiteral("scalingCurve"), QStringLiteral("gamma"),
+        QStringLiteral("attackMs"),     QStringLiteral("decayMs"),
     };
 
     QJsonObject providerProps;
@@ -95,11 +94,18 @@ QJsonArray migrateFromV1(const QJsonArray &layers)
             if (props.contains(QStringLiteral("barCount")))
                 providerProps.insert(QStringLiteral("bandCount"),
                                      props.value(QStringLiteral("barCount")));
+            // v1 stored the window as a sample count; the provider now takes
+            // milliseconds. 48 kHz is the app's fixed internal rate.
+            if (props.contains(QStringLiteral("fftSize"))) {
+                const double samples = props.value(QStringLiteral("fftSize")).toDouble(2048);
+                providerProps.insert(QStringLiteral("windowMs"), samples * 1000.0 / 48000.0);
+            }
             haveSettings = true;
         }
         for (const QString &key : moved)
             props.remove(key);
         props.remove(QStringLiteral("barCount"));
+        props.remove(QStringLiteral("fftSize"));
 
         layer.insert(QStringLiteral("props"), props);
         out.append(layer);

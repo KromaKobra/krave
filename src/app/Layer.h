@@ -98,14 +98,33 @@ class AudioProviderLayer : public Layer
 
     // --- Resolution --------------------------------------------------------
     Q_PROPERTY(int bandCount MEMBER m_bandCount NOTIFY changed)
-    Q_PROPERTY(int fftSize MEMBER m_fftSize NOTIFY changed)
+    /// Analysis window length. Longer resolves closely spaced partials but
+    /// responds more slowly. Rounded up to a power of two internally.
+    Q_PROPERTY(qreal windowMs MEMBER m_windowMs NOTIFY changed)
     Q_PROPERTY(qreal minHz MEMBER m_minHz NOTIFY changed)
     Q_PROPERTY(qreal maxHz MEMBER m_maxHz NOTIFY changed)
+    /// 0 = logarithmic band spacing, 1 = linear. Linear over a narrow low range
+    /// resolves a bass line's harmonics into separate spikes.
+    Q_PROPERTY(qreal hzLinearFactor MEMBER m_hzLinearFactor NOTIFY changed)
+    /// Overlapping windows averaged per frame. A single FFT is a high-variance
+    /// estimate and the floor between partials looks like grass; averaging
+    /// several cuts that noise and leaves clean peaks.
+    Q_PROPERTY(int averageCount MEMBER m_averageCount NOTIFY changed)
 
     // --- Conditioning ------------------------------------------------------
     /// "rms" averages the bins in a band, "peak" takes the loudest. Peak follows
     /// individual partials and is the main cause of frame-to-frame jitter.
     Q_PROPERTY(QString bandMeasure MEMBER m_bandMeasure NOTIFY changed)
+    /// "db" maps a floor..ceiling window onto 0..1; "linear" uses raw magnitude
+    /// times linearGain. Linear leaves a flat floor with sharp peaks on it,
+    /// which is the classic spectrum-analyser look; dB lifts everything and
+    /// reads as one continuous mound.
+    Q_PROPERTY(QString amplitudeMode MEMBER m_amplitudeMode NOTIFY changed)
+    Q_PROPERTY(qreal linearGain MEMBER m_linearGain NOTIFY changed)
+    /// Gain at the bottom of the frequency range, ramping to 1.0 at the top.
+    /// Bass dominates any mix; pulling the bottom down spreads the picture
+    /// across the whole width instead of piling it up at the low end.
+    Q_PROPERTY(qreal lowFreqMagnitude MEMBER m_lowFreqMagnitude NOTIFY changed)
     /// Lifts the treble to compensate music's natural roll-off, so the outer
     /// bars stay active instead of sitting on the floor.
     Q_PROPERTY(qreal tiltDbPerOctave MEMBER m_tiltDbPerOctave NOTIFY changed)
@@ -122,6 +141,10 @@ class AudioProviderLayer : public Layer
     Q_PROPERTY(qreal gamma MEMBER m_gamma NOTIFY changed)
 
     // --- Motion ------------------------------------------------------------
+    /// "attackDecay" rises fast and falls slow; "symmetric" uses one constant
+    /// both ways, which avoids every bar falling at an identical mechanical rate.
+    Q_PROPERTY(QString smoothingMode MEMBER m_smoothingMode NOTIFY changed)
+    Q_PROPERTY(qreal smoothMs MEMBER m_smoothMs NOTIFY changed)
     Q_PROPERTY(qreal attackMs MEMBER m_attackMs NOTIFY changed)
     Q_PROPERTY(qreal decayMs MEMBER m_decayMs NOTIFY changed)
     /// Blends each band toward its neighbours, 0..1. Turns a comb of unrelated
@@ -157,11 +180,16 @@ Q_SIGNALS:
 
 private:
     int m_bandCount = 48;
-    int m_fftSize = 4096;
+    qreal m_windowMs = 85.0;
     qreal m_minHz = 40.0;
     qreal m_maxHz = 14000.0;
+    qreal m_hzLinearFactor = 0.0;
+    int m_averageCount = 1;
 
     QString m_bandMeasure = QStringLiteral("rms");
+    QString m_amplitudeMode = QStringLiteral("db");
+    qreal m_linearGain = 30.0;
+    qreal m_lowFreqMagnitude = 1.0;
     qreal m_tiltDbPerOctave = 0.0;
     qreal m_bandNormalization = 0.7;
     qreal m_normalizationTau = 3.0;
@@ -171,6 +199,8 @@ private:
     QString m_scalingCurve = QStringLiteral("power");
     qreal m_gamma = 3.0;
 
+    QString m_smoothingMode = QStringLiteral("attackDecay");
+    qreal m_smoothMs = 60.0;
     qreal m_attackMs = 5.0;
     qreal m_decayMs = 220.0;
     qreal m_spatialSmoothing = 0.15;

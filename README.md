@@ -123,6 +123,11 @@ per thing drawing it.
 | Control | What it fixes |
 |---|---|
 | Band measure (average / peak) | `peak` follows individual partials and is the biggest single source of frame-to-frame jitter; `rms` averages the bins in a band |
+| Linear vs log spacing | Log gives equal width per octave (a wide overview); linear gives equal width per Hz. Linear over a narrow low range resolves a bass line's harmonics into separate spikes instead of smearing them into one mound |
+| Amplitude: dB vs linear | dB fills the display evenly but lifts the noise between partials as much as the partials themselves, so it reads as one continuous mound. Linear leaves a flat floor with discrete peaks standing on it |
+| Windows averaged | A single FFT is a high-variance estimate and the floor between peaks looks like grass. Averaging several half-overlapped windows (Welch) cuts that noise |
+| Low-frequency level | Bass dominates any mix; pulling the bottom of the range down spreads the picture across the width instead of piling it at the low end |
+| Smoothing: symmetric vs attack/decay | Attack/decay makes every bar fall at the same rate whatever the music does, which reads as mechanical. Symmetric follows the signal's own shape |
 | Treble lift (dB/octave) | Music rolls off with frequency, leaving the outer bars stuck near the floor |
 | Per-band auto-gain | References each band to its own slow-moving average, so a quiet band is as animated as a loud one. Referenced to the average and **not** the recent peak — a peak reference pins every band at its own maximum and flattens the dynamics to nothing |
 | Floor / ceiling / gate (dB) | Sets how much of the range is used and how empty the gaps between beats read |

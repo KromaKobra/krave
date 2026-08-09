@@ -303,7 +303,8 @@ void TestProject::v1ProjectsMigrateToProvider()
     auto *provider = qobject_cast<AudioProviderLayer *>(model.at(0));
     QVERIFY(provider);
     QCOMPARE(provider->property("bandCount").toInt(), 72);
-    QCOMPARE(provider->property("fftSize").toInt(), 4096);
+    // v1's fftSize was a sample count; it becomes a window length in ms.
+    QCOMPARE(provider->property("windowMs").toDouble(), 4096 * 1000.0 / 48000.0);
     QCOMPARE(provider->property("minHz").toDouble(), 45.0);
     QCOMPARE(provider->property("maxHz").toDouble(), 15000.0);
     QCOMPARE(provider->property("attackMs").toDouble(), 12.0);

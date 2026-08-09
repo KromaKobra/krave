@@ -152,7 +152,10 @@ Flickable {
 
             CheckBox {
                 Layout.fillWidth: true
-                checked: root.selected ? root.selected.mirrorSpectrum : false
+                // Sections for other layer types stay instantiated while hidden,
+                // so this can be pointed at a layer with no such property.
+                checked: (root.selected && root.selected.mirrorSpectrum !== undefined)
+                         ? root.selected.mirrorSpectrum : false
                 onToggled: if (root.selected) root.selected.mirrorSpectrum = checked
                 contentItem: Text {
                     leftPadding: 22
@@ -213,7 +216,18 @@ Flickable {
             LabeledSlider {
                 Layout.fillWidth: true
                 label: qsTr("Band count"); target: root.selected; propertyName: "bandCount"
-                from: 4; to: 160; stepSize: 1; decimals: 0
+                from: 4; to: 256; stepSize: 1; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Window (ms)"); target: root.selected; propertyName: "windowMs"
+                from: 10; to: 400; stepSize: 5; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Windows averaged"); target: root.selected
+                propertyName: "averageCount"
+                from: 1; to: 16; stepSize: 1; decimals: 0
             }
             LabeledSlider {
                 Layout.fillWidth: true
@@ -223,10 +237,37 @@ Flickable {
             LabeledSlider {
                 Layout.fillWidth: true
                 label: qsTr("Max frequency (Hz)"); target: root.selected; propertyName: "maxHz"
-                from: 2000; to: 22000; stepSize: 100; decimals: 0
+                from: 200; to: 22000; stepSize: 100; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Linear ← → log spacing"); target: root.selected
+                propertyName: "hzLinearFactor"
+                from: 0; to: 1
             }
 
             SectionHeader { text: qsTr("RESPONSE") }
+
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Amplitude"); target: root.selected; propertyName: "amplitudeMode"
+                options: [
+                    { text: qsTr("Decibel (even, filled)"), value: "db" },
+                    { text: qsTr("Linear (flat floor, peaks)"), value: "linear" }
+                ]
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                visible: root.selected && root.selected.amplitudeMode === "linear"
+                label: qsTr("Gain"); target: root.selected; propertyName: "linearGain"
+                from: 0.5; to: 60; stepSize: 0.5; decimals: 1
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                label: qsTr("Low-frequency level"); target: root.selected
+                propertyName: "lowFreqMagnitude"
+                from: 0; to: 1
+            }
 
             EnumCombo {
                 Layout.fillWidth: true
@@ -288,13 +329,29 @@ Flickable {
 
             SectionHeader { text: qsTr("MOTION") }
 
+            EnumCombo {
+                Layout.fillWidth: true
+                label: qsTr("Smoothing"); target: root.selected; propertyName: "smoothingMode"
+                options: [
+                    { text: qsTr("Symmetric (natural)"), value: "symmetric" },
+                    { text: qsTr("Attack / decay (punchy)"), value: "attackDecay" }
+                ]
+            }
             LabeledSlider {
                 Layout.fillWidth: true
+                visible: root.selected && root.selected.smoothingMode === "symmetric"
+                label: qsTr("Smoothing (ms)"); target: root.selected; propertyName: "smoothMs"
+                from: 0; to: 400; stepSize: 5; decimals: 0
+            }
+            LabeledSlider {
+                Layout.fillWidth: true
+                visible: root.selected && root.selected.smoothingMode !== "symmetric"
                 label: qsTr("Attack (ms)"); target: root.selected; propertyName: "attackMs"
                 from: 0; to: 300; stepSize: 1; decimals: 0
             }
             LabeledSlider {
                 Layout.fillWidth: true
+                visible: root.selected && root.selected.smoothingMode !== "symmetric"
                 label: qsTr("Decay (ms)"); target: root.selected; propertyName: "decayMs"
                 from: 10; to: 1500; stepSize: 5; decimals: 0
             }
@@ -471,7 +528,8 @@ Flickable {
 
             Button {
                 Layout.fillWidth: true
-                visible: root.selected && root.selected.imageSource
+                visible: root.selected && root.selected.imageSource !== undefined
+                         && root.selected.imageSource !== ""
                 text: qsTr("Clear image")
                 onClicked: if (root.selected) root.selected.imageSource = ""
                 contentItem: Text {

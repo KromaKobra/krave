@@ -83,12 +83,13 @@ void SpectrumAnalyzer::rebuild()
     m_scratchRe.resize(n);
     m_scratchIm.resize(n);
     m_magnitudes.resize(n / 2);
+    m_power.resize(n / 2);
 
     m_smoothed.assign(m_params.bandCount, 0.0f);
     m_raw.assign(m_params.bandCount, 0.0f);
     m_bandRefDb.assign(m_params.bandCount, float(m_params.floorDb));
-    m_bandStart.resize(m_params.bandCount);
-    m_bandEnd.resize(m_params.bandCount);
+    m_bandLo.resize(m_params.bandCount);
+    m_bandHi.resize(m_params.bandCount);
     m_bandGainDb.resize(m_params.bandCount);
     m_centreHz.resize(m_params.bandCount);
 
@@ -107,25 +108,43 @@ void SpectrumAnalyzer::layoutBands(int sampleRate)
     const double logMax = std::log(m_params.maxHz);
     const int count = m_params.bandCount;
 
+    const double k = std::clamp(m_params.hzLinearFactor, 0.0, 1.0);
+
+    // Band edge for fraction t across the display, blended between logarithmic
+    // and linear placement.
+    const auto edgeHz = [&](double t) {
+        const double logHz = std::exp(logMin + (logMax - logMin) * t);
+        const double linHz = m_params.minHz + (m_params.maxHz - m_params.minHz) * t;
+        return logHz * (1.0 - k) + linHz * k;
+    };
+
     for (int b = 0; b < count; ++b) {
-        const double f0 = std::exp(logMin + (logMax - logMin) * double(b) / double(count));
-        const double f1 = std::exp(logMin + (logMax - logMin) * double(b + 1) / double(count));
+        const double f0 = edgeHz(double(b) / double(count));
+        const double f1 = edgeHz(double(b + 1) / double(count));
 
-        int start = int(std::floor(f0 * binsPerHz));
-        int end = int(std::ceil(f1 * binsPerHz));
+        // Kept fractional. Bin 0 is DC and is excluded.
+        const double lo = std::clamp(f0 * binsPerHz, 1.0, double(bins - 1));
+        const double hi = std::clamp(f1 * binsPerHz, lo, double(bins - 1));
 
-        start = std::clamp(start, 1, bins - 1); // bin 0 is DC
-        end = std::clamp(end, start + 1, bins);
-
-        m_bandStart[b] = start;
-        m_bandEnd[b] = end;
-        m_centreHz[b] = float(std::sqrt(f0 * f1));
+        m_bandLo[b] = float(lo);
+        m_bandHi[b] = float(hi);
+        m_centreHz[b] = float(k >= 0.5 ? 0.5 * (f0 + f1) : std::sqrt(f0 * f1));
 
         // Tilt is applied per band rather than per bin: the correction only
         // needs to follow the band layout, and this keeps it out of the inner
         // loop entirely.
-        const double octaves = std::log2(double(m_centreHz[b]) / m_params.minHz);
-        m_bandGainDb[b] = float(m_params.tiltDbPerOctave * octaves);
+        const double octaves = std::log2(std::max(1e-6, double(m_centreHz[b]) / m_params.minHz));
+        double gainDb = m_params.tiltDbPerOctave * octaves;
+
+        // Low-frequency ramp, folded into the same per-band gain.
+        if (m_params.lowFreqMagnitude < 1.0) {
+            const double t = (count > 1) ? double(b) / double(count - 1) : 1.0;
+            const double ramp = m_params.lowFreqMagnitude
+                              + (1.0 - m_params.lowFreqMagnitude) * t;
+            gainDb += 20.0 * std::log10(std::max(1e-4, ramp));
+        }
+
+        m_bandGainDb[b] = float(gainDb);
     }
 
     m_builtForRate = sampleRate;
@@ -158,14 +177,31 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
         return out;
     }
 
-    // Centre the window on the requested timestamp; readMono zero-pads the edges.
+    // Welch averaging: several half-overlapped windows centred on the requested
+    // timestamp, averaged in the power domain. readMono zero-pads the edges.
     const qint64 centre = buffer.frameForTime(timeSeconds);
-    buffer.readMono(centre - n / 2, m_frame.data(), n);
-    for (int i = 0; i < n; ++i)
-        m_frame[i] *= m_window[i];
+    const int passes = std::max(1, m_params.averageCount);
+    const int hop = n / 2;
+    const int bins = n / 2;
 
-    m_fft->magnitudes(m_frame.constData(), m_magnitudes.data(),
-                      m_scratchRe.data(), m_scratchIm.data());
+    std::fill(m_power.begin(), m_power.end(), 0.0f);
+
+    for (int p = 0; p < passes; ++p) {
+        const qint64 offset = qint64(p - (passes - 1) / 2) * hop;
+        buffer.readMono(centre - n / 2 + offset, m_frame.data(), n);
+        for (int i = 0; i < n; ++i)
+            m_frame[i] *= m_window[i];
+
+        m_fft->magnitudes(m_frame.constData(), m_magnitudes.data(),
+                          m_scratchRe.data(), m_scratchIm.data());
+
+        for (int i = 0; i < bins; ++i)
+            m_power[i] += m_magnitudes[i] * m_magnitudes[i];
+    }
+
+    const float invPasses = 1.0f / float(passes);
+    for (int i = 0; i < bins; ++i)
+        m_magnitudes[i] = std::sqrt(m_power[i] * invPasses);
 
     // Normalize for window length and the Hann window's coherent gain, so the
     // dB scale means the same thing regardless of fftSize.
@@ -173,23 +209,62 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
     const double span = m_params.ceilingDb - m_params.floorDb;
     const double invSpan = span > 0.0 ? 1.0 / span : 0.0;
 
+    const int binCount = m_magnitudes.size();
     for (int b = 0; b < count; ++b) {
-        const int from = m_bandStart[b];
-        const int to = m_bandEnd[b];
+        const double lo = m_bandLo[b];
+        const double hi = m_bandHi[b];
 
         float amplitude;
-        if (m_params.measure == BandMeasure::Peak) {
+        if (hi - lo < 1.0) {
+            // Narrower than one bin: read the spectrum at the band's centre,
+            // interpolating between neighbouring bins. Snapping to whole bins
+            // here is what produces a fixed comb across the display.
+            const double c = 0.5 * (lo + hi);
+            const int i0 = std::clamp(int(std::floor(c)), 0, binCount - 1);
+            const int i1 = std::min(i0 + 1, binCount - 1);
+            const double f = c - double(i0);
+            amplitude = float(m_magnitudes[i0] * (1.0 - f) + m_magnitudes[i1] * f);
+        } else if (m_params.measure == BandMeasure::Peak) {
             float peak = 0.0f;
-            for (int i = from; i < to; ++i)
+            for (int i = int(lo); i <= int(hi) && i < binCount; ++i)
                 peak = std::max(peak, m_magnitudes[i]);
             amplitude = peak;
         } else {
-            // Energy average. A single loud bin no longer defines the whole band,
-            // which is what stops neighbouring bars from flickering independently.
+            // Energy average, weighting the partially covered bins at each end.
+            // A single loud bin no longer defines the whole band, which stops
+            // neighbouring bars from flickering independently.
             double sum = 0.0;
-            for (int i = from; i < to; ++i)
-                sum += double(m_magnitudes[i]) * double(m_magnitudes[i]);
-            amplitude = float(std::sqrt(sum / double(to - from)));
+            double weight = 0.0;
+            for (int i = int(std::floor(lo)); i <= int(std::floor(hi)) && i < binCount; ++i) {
+                const double w = std::min(hi, double(i + 1)) - std::max(lo, double(i));
+                if (w <= 0.0)
+                    continue;
+                sum += w * double(m_magnitudes[i]) * double(m_magnitudes[i]);
+                weight += w;
+            }
+            amplitude = weight > 0.0 ? float(std::sqrt(sum / weight)) : 0.0f;
+        }
+
+        if (m_params.amplitude == AmplitudeMode::Linear) {
+            // Straight magnitude. No floor/ceiling window and no gate: quiet
+            // content simply stays near zero, which is what leaves a flat floor
+            // with sharp peaks standing on it.
+            double v = double(amplitude) * norm * m_params.linearGain;
+            v *= std::pow(10.0, m_bandGainDb[b] / 20.0); // tilt, as a gain
+            v = std::clamp(v, 0.0, 1.0);
+
+            switch (m_params.curve) {
+            case ScalingCurve::Linear:
+                break;
+            case ScalingCurve::Logarithmic:
+                v = std::log10(1.0 + 9.0 * v);
+                break;
+            case ScalingCurve::Power:
+                v = std::pow(v, std::max(0.01, m_params.gamma));
+                break;
+            }
+            m_raw[b] = float(v);
+            continue;
         }
 
         double db = 20.0 * std::log10(double(amplitude * norm) + 1e-12);
@@ -247,10 +322,15 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
         }
     }
 
+    const float symmetric = blendFactor(m_params.smoothTau, dt);
     for (int b = 0; b < count; ++b) {
-        // Rise fast, fall slow -- the asymmetry is what reads as "punchy".
         const float target = m_raw[b];
-        const float k = (target > m_smoothed[b]) ? attack : decay;
+        // Asymmetric: rise fast, fall slow, which reads as "punchy" but makes
+        // every bar fall at the same rate whatever the music does.
+        // Symmetric: one constant both ways, which tracks the signal's own shape.
+        const float k = (m_params.smoothing == SmoothingMode::Symmetric)
+                            ? symmetric
+                            : ((target > m_smoothed[b]) ? attack : decay);
         m_smoothed[b] += (target - m_smoothed[b]) * k;
         out.bands[b] = std::max(std::clamp(m_smoothed[b], 0.0f, 1.0f), floorLevel);
     }
