@@ -141,7 +141,7 @@ per thing drawing it.
 | Type | Reacts to audio | Notable properties |
 |---|---|---|
 | `audio` | provides the data | see above. Draws nothing |
-| `bars` | fed by a provider | width, corner radius, min/max height, linear / mirrored / radial, **mirror spectrum** (bass at centre, treble at both edges), solid / gradient / spectrum colour, reactive brightness |
+| `bars` | fed by a provider | width, corner radius, min/max height, linear / mirrored / radial, **mirror spectrum** (bass at both edges, treble meeting in the centre), solid / gradient / spectrum colour, reactive brightness |
 | `particles` | yes, own analyzer | driving band (bass/mid/treble), idle and reactive emission rates, colour, size, lifetime, speed, direction, spread, gravity |
 | `text` | no | text, font, size (relative to canvas height), colour, alignment |
 | `background` | no | colour, image, fill mode |

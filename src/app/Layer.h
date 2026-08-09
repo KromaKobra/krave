@@ -235,9 +235,9 @@ class BarLayer : public Layer
     /// "linear", "mirrored" or "radial". Note this mirrors VERTICALLY (bars grow
     /// both up and down); to mirror the frequency axis use `mirrorSpectrum`.
     Q_PROPERTY(QString orientation MEMBER m_orientation NOTIFY changed)
-    /// Reflects the FREQUENCY axis: lowest band at the centre, highest at both
-    /// edges. This is the symmetric skyline look, and is independent of
-    /// `orientation`.
+    /// Reflects the FREQUENCY axis: lowest band at both outer edges, highest
+    /// meeting in the centre. This is the symmetric skyline look, and is
+    /// independent of `orientation`.
     Q_PROPERTY(bool mirrorSpectrum MEMBER m_mirrorSpectrum NOTIFY changed)
     /// Radial only: hole size as a fraction of the layer's smaller dimension.
     Q_PROPERTY(qreal innerRadius MEMBER m_innerRadius NOTIFY changed)

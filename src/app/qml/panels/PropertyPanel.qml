@@ -159,7 +159,7 @@ Flickable {
                 onToggled: if (root.selected) root.selected.mirrorSpectrum = checked
                 contentItem: Text {
                     leftPadding: 22
-                    text: qsTr("Mirror spectrum (bass at centre)")
+                    text: qsTr("Mirror spectrum (bass at the edges)")
                     color: "#c8c8d4"
                     font.pixelSize: 11
                     verticalAlignment: Text.AlignVCenter

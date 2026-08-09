@@ -249,12 +249,13 @@ void TestProject::mirrorSpectrumIsSymmetric()
     QCOMPARE(bars->barCount(), 4);
     QVERIFY(sameAs(bars->bands(), {0.1, 0.2, 0.3, 0.4}));
 
-    // Mirroring doubles the bar count and puts the LOWEST band at the centre.
+    // Mirroring doubles the bar count and puts the LOWEST band at both outer
+    // edges, with the highest bands meeting in the centre.
     bars->setProperty("mirrorSpectrum", true);
     bars->takeFrame(frame);
     QCOMPARE(bars->barCount(), 8);
     const QList<qreal> b = bars->bands();
-    QVERIFY(sameAs(b, {0.4, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.4}));
+    QVERIFY(sameAs(b, {0.1, 0.2, 0.3, 0.4, 0.4, 0.3, 0.2, 0.1}));
 
     // Exactly symmetric about the centre.
     for (int i = 0; i < b.size(); ++i)

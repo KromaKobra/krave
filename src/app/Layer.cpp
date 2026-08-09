@@ -90,15 +90,16 @@ void BarLayer::takeFrame(const SpectrumFrame &frame)
     const int n = frame.bands.size();
 
     if (m_mirrorSpectrum) {
-        // Lowest band at the centre, highest at both edges. An even total keeps
-        // the two halves the same width so the result is exactly symmetric.
+        // Lowest band at both outer edges, highest meeting in the centre. An
+        // even total keeps the two halves the same width so the result is
+        // exactly symmetric.
         const int total = n * 2;
         if (m_bands.size() != total)
             m_bands.resize(total);
         for (int i = 0; i < n; ++i) {
             const qreal v = qreal(frame.bands[i]);
-            m_bands[n - 1 - i] = v; // left half, running outward from centre
-            m_bands[n + i] = v;     // right half
+            m_bands[i] = v;             // left half, running inward from the edge
+            m_bands[total - 1 - i] = v; // right half
         }
     } else {
         if (m_bands.size() != n)
