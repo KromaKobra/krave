@@ -64,7 +64,7 @@ cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 Launch the editor, optionally opening straight onto a track:
 
 ```bash
-./build/Debug/bin/musicvisualizer.exe --audio track.mp3
+./build/Debug/bin/krave.exe --audio track.mp3
 ```
 
 - **Import audio** loads mp3/wav/flac/aac/m4a/ogg. A waveform, a time ruler and a draggable
@@ -88,7 +88,7 @@ Launch the editor, optionally opening straight onto a track:
 The same pipeline, no window — useful for batch renders:
 
 ```bash
-./build/Debug/bin/musicvisualizer.exe --render --audio track.mp3 --out out.mp4 --project look.mvproj --fps 60
+./build/Debug/bin/krave.exe --render --audio track.mp3 --out out.mp4 --project look.mvproj --fps 60
 ```
 
 Options: `--width`, `--height`, `--fps`, `--codec h264|prores`, `--no-audio`, `--project`.

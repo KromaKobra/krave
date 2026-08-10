@@ -30,7 +30,7 @@ namespace {
 /// frames). Large enough to keep the encoder fed, small enough to bound memory.
 constexpr qint64 kWriteHighWaterMark = 32 * 1024 * 1024;
 
-constexpr auto kCanvasUrl = "qrc:/qt/qml/MusicVisualizer/VisualizerCanvas.qml";
+constexpr auto kCanvasUrl = "qrc:/qt/qml/krave/VisualizerCanvas.qml";
 
 /// Advances the Qt animation clock by exactly one output frame at a time.
 ///

@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // A choice between two or three short options, shown all at once.
 //

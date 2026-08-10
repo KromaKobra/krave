@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // Divides the property panel into named groups.
 //

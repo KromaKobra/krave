@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // The typed half of a numeric parameter.
 //

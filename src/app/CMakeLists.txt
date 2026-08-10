@@ -1,4 +1,4 @@
-qt_add_executable(musicvisualizer
+qt_add_executable(krave
     main.cpp
     AudioEngine.h      AudioEngine.cpp
     ExportController.h ExportController.cpp
@@ -56,7 +56,7 @@ set_source_files_properties(${app_qml_singletons}
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 # The QML sources live under qml/, but the module root must be that directory --
-# otherwise Main.qml would register as MusicVisualizer.qml/Main. Aliasing each
+# otherwise Main.qml would register as krave.qml/Main. Aliasing each
 # file strips the prefix so `import "panels"` and loadFromModule("...", "Main")
 # both resolve.
 foreach(qml_file IN LISTS app_qml_files)
@@ -67,8 +67,8 @@ endforeach()
 set_source_files_properties(assets/glowdot.png
     PROPERTIES QT_RESOURCE_ALIAS assets/glowdot.png)
 
-qt_add_qml_module(musicvisualizer
-    URI MusicVisualizer
+qt_add_qml_module(krave
+    URI krave
     VERSION 1.0
     QML_FILES ${app_qml_files}
     RESOURCES
@@ -79,8 +79,8 @@ qt_add_qml_module(musicvisualizer
 
 # Blend-mode fragment shaders. Compiled to .qsb and placed alongside the QML in
 # the module's resource tree, so LayerFrame can reference them by qrc path.
-qt_add_shaders(musicvisualizer "blend_shaders"
-    PREFIX "/qt/qml/MusicVisualizer"
+qt_add_shaders(krave "blend_shaders"
+    PREFIX "/qt/qml/krave"
     FILES
         shaders/blend_add.frag
         shaders/blend_screen.frag
@@ -89,7 +89,7 @@ qt_add_shaders(musicvisualizer "blend_shaders"
         shaders/blend_screen.frag.qsb
 )
 
-target_link_libraries(musicvisualizer PRIVATE
+target_link_libraries(krave PRIVATE
     mvcore
     Qt6::Core
     Qt6::Gui
@@ -108,11 +108,11 @@ target_link_libraries(musicvisualizer PRIVATE
 # deployed alongside the app.
 find_package(Qt6 6.8 QUIET COMPONENTS QuickParticles QuickShapes)
 
-target_compile_definitions(musicvisualizer PRIVATE
+target_compile_definitions(krave PRIVATE
     MV_VERSION="${PROJECT_VERSION}"
 )
 
-set_target_properties(musicvisualizer PROPERTIES
+set_target_properties(krave PROPERTIES
     WIN32_EXECUTABLE FALSE   # keep a console attached for diagnostics
     MACOSX_BUNDLE FALSE
 )

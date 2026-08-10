@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // A square, label-less action. Used wherever a row is too tight for words:
 // layer visibility, reordering, transport, panel headers.

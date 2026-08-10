@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // The themed slider: a hairline track, an accent fill and a handle that carries
 // the accent as a glow rather than growing or changing colour under the cursor.

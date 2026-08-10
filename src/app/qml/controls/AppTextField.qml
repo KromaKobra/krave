@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // A single-line text field on the sunken well, with the accent reserved for the
 // caret and the focused border.

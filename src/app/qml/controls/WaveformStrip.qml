@@ -1,6 +1,6 @@
 import QtQuick
 
-import MusicVisualizer
+import krave
 
 // One painting of the track's amplitude envelope, in a single colour.
 //

@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 
-import MusicVisualizer
+import krave
 
 // Renders one path from Icons at any size, in any colour.
 //
