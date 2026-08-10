@@ -130,7 +130,7 @@ per thing drawing it.
 | Gain / black level (linear mode) | Gain scales magnitude to 0..1; the black level is subtracted after it and the rest rescaled. Quiet passages carry rumble in every band, so without a black level the display never rests at the baseline and loud passages then have to climb from an already-high floor |
 | Curve + gamma (linear mode) | With gamma **above** 1 this is an *expander*: it pushes mid-level bands toward the floor while leaving peaks near full height. That is what produces a low flat body with tall spikes, rather than the whole display rising together when the track gets loud |
 | Low-frequency level | Bass dominates any mix; pulling the bottom of the range down spreads the picture across the width instead of piling it at the low end |
-| Min frequency | May be **negative**. Bands below the first usable FFT bin collapse onto it and render as a flat margin at the outer edge, which is how the reference insets its lowest audible band from the edge instead of starting there |
+| Min frequency | May be **negative**, which insets the lowest audible band from the edge instead of starting there. Bands under the transform's lowest representable frequency all collapse onto the same bin and would draw as one wide slab, so they are reported via `SpectrumFrame::activeFrom` and the bar view leaves them out — giving a clean gap with every drawn bar the same width |
 | Smoothing: symmetric vs attack/decay | Attack/decay makes every bar fall at the same rate whatever the music does, which reads as mechanical. Symmetric follows the signal's own shape |
 | Treble lift (dB/octave) | Music rolls off with frequency, leaving the outer bars stuck near the floor |
 | Per-band auto-gain | References each band to its own slow-moving average, so a quiet band is as animated as a loud one. Referenced to the average and **not** the recent peak — a peak reference pins every band at its own maximum and flattens the dynamics to nothing |
@@ -152,6 +152,11 @@ per thing drawing it.
 
 Every layer also has position, size, rotation, opacity, visibility and blend mode. Geometry is
 normalized 0..1, so a project renders identically at preview size and at 4K.
+
+**Horizontal fill** is the bar layer's `sizeW` ("Width" in the panel). With a negative `minHz` the
+unresolvable bands leave a gap at each edge, and `sizeW` scales the whole row into or past it —
+measured on the bundled bass preset: 0.7 fills 55% of the frame, 1.0 fills 78%, 1.28 reaches edge
+to edge.
 
 **Blend modes.** Qt Quick has no per-item blend mode. `add` and `screen` work by rendering the layer
 to a texture and running a `ShaderEffect` that exploits premultiplied source-over compositing:

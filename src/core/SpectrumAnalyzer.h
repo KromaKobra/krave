@@ -169,6 +169,16 @@ struct SpectrumParams
 struct SpectrumFrame
 {
     QVector<float> bands; ///< bandCount values, each 0..1
+
+    /// Index of the first band that maps to a distinct FFT bin.
+    ///
+    /// When minHz sits below the lowest frequency the transform can represent,
+    /// every band under that point collapses onto the same bin and reports an
+    /// identical value. Drawn, they merge into one wide slab at the edge of the
+    /// display. They are reported here so a view can leave them out and show a
+    /// gap instead, keeping every drawn bar the same width.
+    int activeFrom = 0;
+
     float bass = 0.0f;    ///< aggregate energies for reactive layers, 0..1
     float mid = 0.0f;
     float treble = 0.0f;
@@ -223,6 +233,7 @@ private:
     QVector<float> m_smoothed;
     QVector<float> m_bandRefDb; ///< per-band reference peak for auto-gain
 
+    int m_activeFrom = 0;   ///< bands below this share one bin and are duplicates
     int m_builtForRate = 0;
     bool m_dirty = true;
 };

@@ -61,6 +61,7 @@ private Q_SLOTS:
     void analyzerDecaysToSilence();
     void analyzerKeepsStateWhenParamsAreResent();
     void windowLengthSetsResolutionContinuously();
+    void unresolvableLowBandsAreFlagged();
     void bandNormalizationFlattensWithoutCrushingDynamics();
 };
 
@@ -368,6 +369,48 @@ void TestFft::windowLengthSetsResolutionContinuously()
     QVERIFY2(std::abs(w5486 - expected) < 0.5 * expected,
              qPrintable(QStringLiteral("5486 -> %1 Hz, expected near %2")
                             .arg(w5486).arg(expected)));
+}
+
+void TestFft::unresolvableLowBandsAreFlagged()
+{
+    // A negative minHz insets the lowest audible band from the edge, but every
+    // band under the transform's lowest representable frequency collapses onto
+    // the same bin and reports an identical value. Drawn, they merge into one
+    // wide slab, so they are reported via activeFrom for the view to skip.
+    const AudioBuffer tone = makeSine(120.0, 1.0);
+
+    SpectrumParams p;
+    p.windowSamples = 8192;
+    p.bandCount = 32;
+    p.minHz = -72.0;
+    p.maxHz = 238.0;
+    p.hzLinearFactor = 1.0;
+    p.amplitude = AmplitudeMode::Linear;
+    p.spatialSmoothing = 0.0;
+    p.attackTau = 0.0;
+    p.decayTau = 0.0;
+
+    SpectrumAnalyzer a;
+    a.setParams(p);
+    const SpectrumFrame f = a.analyze(tone, 0.5, 1.0 / 60.0);
+
+    // Bands span (238 - -72)/32 = 9.7 Hz each, so roughly the first seven sit
+    // below 0 Hz and cannot be resolved.
+    QVERIFY2(f.activeFrom >= 5 && f.activeFrom <= 9,
+             qPrintable(QStringLiteral("activeFrom = %1").arg(f.activeFrom)));
+
+    // Those bands are exactly what would have merged: all the same value.
+    for (int b = 1; b < f.activeFrom; ++b) {
+        QVERIFY2(std::abs(f.bands[b] - f.bands[0]) < 1e-6f,
+                 qPrintable(QStringLiteral("band %1 differs from band 0").arg(b)));
+    }
+
+    // A range starting inside the resolvable region flags nothing.
+    p.minHz = 40.0;
+    p.maxHz = 400.0;
+    SpectrumAnalyzer b2;
+    b2.setParams(p);
+    QCOMPARE(b2.analyze(tone, 0.5, 1.0 / 60.0).activeFrom, 0);
 }
 
 void TestFft::bandNormalizationFlattensWithoutCrushingDynamics()

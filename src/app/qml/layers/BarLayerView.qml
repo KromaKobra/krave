@@ -24,6 +24,20 @@ LayerFrame {
         return layerData.bands[index]
     }
 
+    /// Bands below the analysis window's lowest resolvable frequency all report
+    /// the same value; drawing them merges them into one wide slab at the edge.
+    /// Skipping them leaves a gap and keeps every drawn bar the same width.
+    function barActive(index) {
+        if (!layerData)
+            return true
+        const dead = layerData.inactiveEdgeBars
+        if (dead <= 0)
+            return true
+        return layerData.mirrorSpectrum
+            ? (index >= dead && index < barCount - dead)
+            : (index >= dead)
+    }
+
     function mixColor(a, b, t) {
         return Qt.rgba(a.r + (b.r - a.r) * t,
                        a.g + (b.g - a.g) * t,
@@ -78,6 +92,7 @@ LayerFrame {
                 readonly property real level: frame.levelAt(index)
                 readonly property real len: frame.barLength(level, parent.height * (parent.mirrored ? 0.5 : 1.0))
 
+                visible: frame.barActive(index)
                 x: parent.slot * index + (parent.slot - parent.barW) / 2
                 width: parent.barW
                 height: parent.height
@@ -129,6 +144,7 @@ LayerFrame {
 
                 readonly property real level: frame.levelAt(index)
 
+                visible: frame.barActive(index)
                 x: radial.width / 2
                 y: radial.height / 2
                 width: 1

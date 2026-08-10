@@ -171,6 +171,13 @@ void SpectrumAnalyzer::layoutBands(int sampleRate)
         m_bandGainDb[b] = float(gainDb);
     }
 
+    // Bands entirely below the first usable bin were all clamped onto it, so
+    // they carry the same value and would draw as one slab. Find where real
+    // content starts.
+    m_activeFrom = 0;
+    while (m_activeFrom < count && m_bandHi[m_activeFrom] <= 1.0f + 1e-6f)
+        ++m_activeFrom;
+
     m_builtForRate = sampleRate;
 }
 
@@ -190,6 +197,7 @@ SpectrumFrame SpectrumAnalyzer::analyze(const AudioBuffer &buffer, double timeSe
 
     SpectrumFrame out;
     out.bands.resize(count);
+    out.activeFrom = std::min(m_activeFrom, count);
 
     if (buffer.isEmpty()) {
         // Still decay toward the resting level so bars fall away rather than freeze.

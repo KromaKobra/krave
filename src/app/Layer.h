@@ -260,6 +260,11 @@ class BarLayer : public Layer
     /// Already reflected when `mirrorSpectrum` is set, so the view just draws it.
     Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
     Q_PROPERTY(int barCount READ barCount NOTIFY bandsChanged)
+    /// Bars at each outer edge that carry no distinct content and should not be
+    /// drawn. They come from bands below the analysis window's lowest resolvable
+    /// frequency, which all collapse onto the same bin; drawn, they merge into
+    /// one wide slab.
+    Q_PROPERTY(int inactiveEdgeBars READ inactiveEdgeBars NOTIFY bandsChanged)
     Q_PROPERTY(qreal bass READ bass NOTIFY bandsChanged)
     Q_PROPERTY(qreal mid READ mid NOTIFY bandsChanged)
     Q_PROPERTY(qreal treble READ treble NOTIFY bandsChanged)
@@ -271,6 +276,7 @@ public:
 
     const QList<qreal> &bands() const { return m_bands; }
     int barCount() const { return int(m_bands.size()); }
+    int inactiveEdgeBars() const { return m_inactiveEdgeBars; }
     qreal bass() const { return m_bass; }
     qreal mid() const { return m_mid; }
     qreal treble() const { return m_treble; }
@@ -286,6 +292,7 @@ Q_SIGNALS:
 
 private:
     int m_providerId = 0;
+    int m_inactiveEdgeBars = 0;
     bool m_mirrorSpectrum = false;
     qreal m_barWidthRatio = 0.65;
     qreal m_cornerRadius = 2.0;

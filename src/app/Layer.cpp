@@ -90,6 +90,7 @@ BarLayer::BarLayer(QObject *parent)
 void BarLayer::takeFrame(const SpectrumFrame &frame)
 {
     const int n = frame.bands.size();
+    m_inactiveEdgeBars = frame.activeFrom;
 
     if (m_mirrorSpectrum) {
         // Lowest band at both outer edges, highest meeting in the centre. An
