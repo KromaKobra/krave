@@ -20,6 +20,8 @@ ColumnLayout {
     property real to: 1
     property real stepSize: 0.01
     property int decimals: 2
+    /// Where the slider's fill starts; 0 on a signed parameter puts it mid-track.
+    property real origin: from
     /// Suffix shown inside the number field: dB, Hz, ms, %.
     property string unit: ""
 
@@ -69,6 +71,7 @@ ColumnLayout {
         Layout.fillWidth: true
         from: root.from
         to: root.to
+        origin: root.origin
         stepSize: root.stepSize
         // Track the model, but do not fight the user while they drag.
         value: root.value

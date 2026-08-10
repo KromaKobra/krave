@@ -42,6 +42,23 @@ QJsonObject serializeLayer(const Layer *layer)
     return obj;
 }
 
+/// Fold retired property values into the ones that replaced them.
+///
+/// This runs for every file rather than behind a format-version gate: the values
+/// it fixes were legal in more than one version, so a gate would need a version
+/// bump that only makes new files unreadable by older builds.
+QJsonObject migrateLegacyValues(const QString &type, QJsonObject props)
+{
+    // "mirrored" used to be an orientation. It is now linear plus the two-sided
+    // bar toggle, which radial can have too.
+    if (type == QLatin1String("bars")
+        && props.value(QStringLiteral("orientation")).toString() == QLatin1String("mirrored")) {
+        props.insert(QStringLiteral("orientation"), QStringLiteral("linear"));
+        props.insert(QStringLiteral("mirrorBars"), true);
+    }
+    return props;
+}
+
 Layer *deserializeLayer(const QJsonObject &obj)
 {
     const QString type = obj.value(QStringLiteral("type")).toString();
@@ -49,7 +66,8 @@ Layer *deserializeLayer(const QJsonObject &obj)
     if (!layer)
         return nullptr;
 
-    const QJsonObject props = obj.value(QStringLiteral("props")).toObject();
+    const QJsonObject props =
+        migrateLegacyValues(type, obj.value(QStringLiteral("props")).toObject());
     for (auto it = props.constBegin(); it != props.constEnd(); ++it) {
         // setProperty converts through the property system, so a "#ff4488"
         // string lands correctly in a QColor property.

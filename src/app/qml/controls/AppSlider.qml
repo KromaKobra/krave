@@ -11,6 +11,14 @@ Slider {
     property real trackHeight: 4
     property real handleSize: 13
 
+    /// Where the accent fill starts. Defaults to the low end, which is the usual
+    /// "how full is it" reading; set it to 0 on a signed parameter so the fill
+    /// grows out of the middle of the track in whichever direction the value went.
+    property real origin: from
+
+    readonly property real originPosition: to === from
+                                           ? 0 : (origin - from) / (to - from)
+
     implicitHeight: 20
 
     background: Rectangle {
@@ -22,7 +30,8 @@ Slider {
         color: Theme.neutral800
 
         Rectangle {
-            width: control.visualPosition * parent.width
+            x: Math.min(control.visualPosition, control.originPosition) * parent.width
+            width: Math.abs(control.visualPosition - control.originPosition) * parent.width
             height: parent.height
             radius: parent.radius
             color: Theme.accent

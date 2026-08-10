@@ -17,6 +17,8 @@ RowLayout {
     property string propertyName: ""
     /// Used when no target is set.
     property bool checked: false
+    /// Indents the row so it reads as a detail of the control above it.
+    property bool sub: false
 
     readonly property bool value: {
         if (!target || !propertyName)
@@ -37,6 +39,7 @@ RowLayout {
     }
 
     Layout.fillWidth: true
+    Layout.leftMargin: root.sub ? Theme.space4 : 0
     spacing: Theme.space3
 
     ColumnLayout {

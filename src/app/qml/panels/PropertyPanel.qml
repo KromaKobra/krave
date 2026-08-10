@@ -222,7 +222,7 @@ Rectangle {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeKicker
                         text: root.selected && root.selected.mirrorSpectrum
-                              ? qsTr("%1 bars — the audio layer's bands, mirrored")
+                              ? qsTr("%1 bars — the audio layer's bands, reflected")
                                   .arg(root.selected.barCount)
                               : qsTr("%1 bars, set by the audio layer's band count")
                                   .arg(root.selected ? root.selected.barCount : 0)
@@ -233,15 +233,34 @@ Rectangle {
                         target: root.selected; propertyName: "orientation"
                         options: [
                             { text: qsTr("Linear"), value: "linear" },
-                            { text: qsTr("Mirrored"), value: "mirrored" },
                             { text: qsTr("Radial"), value: "radial" }
                         ]
+                    }
+                    ToggleRow {
+                        label: qsTr("Mirror bars")
+                        description: qsTr("Bars grow both ways from the base")
+                        target: root.selected
+                        propertyName: "mirrorBars"
                     }
                     ParamSlider {
                         visible: root.selected && root.selected.orientation === "radial"
                         label: qsTr("Inner radius"); target: root.selected
                         propertyName: "innerRadius"
                         from: 0.05; to: 0.9
+                    }
+                    ParamSlider {
+                        visible: root.selected && root.selected.orientation !== "radial"
+                        label: qsTr("Arc"); target: root.selected; propertyName: "arc"
+                        from: -1; to: 1; origin: 0
+                    }
+                    ToggleRow {
+                        visible: root.selected && root.selected.orientation !== "radial"
+                                 && root.selected.arc !== 0
+                        sub: true
+                        label: qsTr("Bars match arc")
+                        description: qsTr("Bars widen to fill the fan; corner radius is ignored")
+                        target: root.selected
+                        propertyName: "barsMatchArc"
                     }
                     ParamSlider {
                         label: qsTr("Bar width"); target: root.selected
@@ -264,9 +283,19 @@ Rectangle {
 
                     ToggleRow {
                         label: qsTr("Mirror spectrum")
-                        description: qsTr("Bass at the outer edges")
+                        description: qsTr("Reflect the frequency axis")
                         target: root.selected
                         propertyName: "mirrorSpectrum"
+                    }
+                    ToggleRow {
+                        // A layer of another type has no such property at all, so
+                        // this reads `undefined` unless it is coerced.
+                        visible: root.selected ? root.selected.mirrorSpectrum === true : false
+                        sub: true
+                        label: qsTr("Bass in the centre")
+                        description: qsTr("Otherwise bass sits at the outer edges")
+                        target: root.selected
+                        propertyName: "bassInner"
                     }
 
                     SectionHeader { text: qsTr("Colour") }

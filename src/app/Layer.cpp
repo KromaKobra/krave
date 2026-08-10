@@ -93,16 +93,24 @@ void BarLayer::takeFrame(const SpectrumFrame &frame)
     m_inactiveEdgeBars = frame.activeFrom;
 
     if (m_mirrorSpectrum) {
-        // Lowest band at both outer edges, highest meeting in the centre. An
-        // even total keeps the two halves the same width so the result is
-        // exactly symmetric.
+        // The band order is repeated back on itself. An even total keeps the two
+        // halves the same width so the result is exactly symmetric.
+        //
+        // Default: lowest band at both outer edges, highest meeting in the
+        // centre. With `bassInner` the order flips -- the lowest band lands in
+        // the two centre slots and the highest sits at the edges.
         const int total = n * 2;
         if (m_bands.size() != total)
             m_bands.resize(total);
         for (int i = 0; i < n; ++i) {
             const qreal v = qreal(frame.bands[i]);
-            m_bands[i] = v;             // left half, running inward from the edge
-            m_bands[total - 1 - i] = v; // right half
+            if (m_bassInner) {
+                m_bands[n - 1 - i] = v; // left half, running outward from the centre
+                m_bands[n + i] = v;     // right half
+            } else {
+                m_bands[i] = v;             // left half, running inward from the edge
+                m_bands[total - 1 - i] = v; // right half
+            }
         }
     } else {
         if (m_bands.size() != n)

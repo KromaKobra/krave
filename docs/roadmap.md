@@ -11,6 +11,7 @@
 - Fix play/pause glitches. When paused at a certain timestamp, and then playing shifts the timestamp back less than a second. Moving the playhead and then playing starts with a second of where it was previously before switching.
 - Remove stop button (back arrow does the same thing and is more intuitive), and add frame controls. I don't know if GUI frame controls are important, but pressing < and > should move forward and back a frame, while holding ctrl for example moves by 5 seconds.
 - Display the framerate of the video during playback. Cap the framerate at project framerate.
+- Add speed and pitch modifiers to audio. (Visualizers are commonly used in Nightcore)
 
 **Timeline**
 - Allow the timestamp to be click to edit manually.
@@ -29,13 +30,6 @@
 - To the right of each name is a hidden info icon that only appers when the user is hovering their mouse over a rectangle that covers the name and the icon itself. If the icon hovered over, a description pops out about what that setting means and does. Maybe add a feature that when the icon is pressed, then a window pops up with a detailed description of the setting.
 - Values can be linked to other values with expressions like in Davinci Resolve.
 - Values can be linked to audio provider bands. Sometimes audio providers meant for a value will just have one band.
-
-**Spectrum**
-
-- Under the shape section, remove the mirrored orientation, and add it as an additional toggle to both the linear and radial orientation.
-- A subtoggle of the other mirror toggle should determine if the base is in the inner or outer section of the spectrum.
-- On the linear orientation, there should be an arc slider. The arc is defaulted to 0 which is the middle of the slider. A greater arc bows the shape of the spectrum upward, while a negative arc bows it downward.
-- A sub toggle beneath the arc slider is an option to have bars match arc. When this is toggled on, the bars start at the same width but get wider or shorter towards the end to fit the arc.
 
 **Layers**
 

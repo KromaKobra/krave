@@ -20,6 +20,7 @@ private Q_SLOTS:
     void layerOrderIsPreserved();
     void spectrumConsumersAreDiscovered();
     void mirrorSpectrumIsSymmetric();
+    void mirroredOrientationBecomesToggle();
     void v1ProjectsMigrateToProvider();
     void modelReordersAndDeletes();
 };
@@ -47,7 +48,12 @@ void TestProject::roundTripPreservesEveryProperty()
     bars->setProperty("minHeight", 0.02);
     bars->setProperty("maxHeight", 0.66);
     bars->setProperty("orientation", QStringLiteral("radial"));
+    bars->setProperty("mirrorBars", true);
+    bars->setProperty("mirrorSpectrum", true);
+    bars->setProperty("bassInner", true);
     bars->setProperty("innerRadius", 0.51);
+    bars->setProperty("arc", -0.37);
+    bars->setProperty("barsMatchArc", true);
     bars->setProperty("growUpward", false);
     bars->setProperty("colorMode", QStringLiteral("spectrum"));
     bars->setProperty("colorA", QColor(QStringLiteral("#ff8800")));
@@ -260,6 +266,52 @@ void TestProject::mirrorSpectrumIsSymmetric()
     // Exactly symmetric about the centre.
     for (int i = 0; i < b.size(); ++i)
         QCOMPARE(b.at(i), b.at(b.size() - 1 - i));
+
+    // bassInner flips which end meets in the middle: lowest band at the seam,
+    // highest at both outer edges. Still symmetric.
+    bars->setProperty("bassInner", true);
+    bars->takeFrame(frame);
+    QCOMPARE(bars->barCount(), 8);
+    const QList<qreal> inner = bars->bands();
+    QVERIFY(sameAs(inner, {0.4, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.4}));
+    for (int i = 0; i < inner.size(); ++i)
+        QCOMPARE(inner.at(i), inner.at(inner.size() - 1 - i));
+}
+
+void TestProject::mirroredOrientationBecomesToggle()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("mirrored.mvproj"));
+
+    // "mirrored" was a third orientation before it became a toggle. Nothing
+    // validates the string, so without a fix-up it would load verbatim and
+    // leave the orientation control with no segment selected.
+    QJsonObject barProps;
+    barProps.insert(QStringLiteral("orientation"), QStringLiteral("mirrored"));
+
+    QJsonObject bar;
+    bar.insert(QStringLiteral("type"), QStringLiteral("bars"));
+    bar.insert(QStringLiteral("props"), barProps);
+
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
+    root.insert(QStringLiteral("version"), 2);
+    root.insert(QStringLiteral("layers"), QJsonArray{bar});
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QJsonDocument(root).toJson());
+    file.close();
+
+    LayerModel model;
+    Project project;
+    project.setLayerModel(&model);
+    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
+
+    QCOMPARE(model.count(), 1);
+    QCOMPARE(model.at(0)->property("orientation").toString(), QStringLiteral("linear"));
+    QVERIFY(model.at(0)->property("mirrorBars").toBool());
 }
 
 void TestProject::v1ProjectsMigrateToProvider()

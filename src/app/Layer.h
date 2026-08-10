@@ -237,15 +237,34 @@ class BarLayer : public Layer
     Q_PROPERTY(qreal maxHeight MEMBER m_maxHeight NOTIFY changed)
 
     // --- Placement ---------------------------------------------------------
-    /// "linear", "mirrored" or "radial". Note this mirrors VERTICALLY (bars grow
-    /// both up and down); to mirror the frequency axis use `mirrorSpectrum`.
+    /// "linear" or "radial". Older projects also stored "mirrored"; that look is
+    /// now `orientation == "linear"` plus `mirrorBars`, and Project.cpp rewrites
+    /// the old value on load.
     Q_PROPERTY(QString orientation MEMBER m_orientation NOTIFY changed)
-    /// Reflects the FREQUENCY axis: lowest band at both outer edges, highest
-    /// meeting in the centre. This is the symmetric skyline look, and is
-    /// independent of `orientation`.
+    /// Two-sided bars: each one grows both ways from its base line rather than
+    /// only into the layer. Works in either orientation -- linear grows up and
+    /// down from the centre line, radial grows out and in from the inner ring.
+    /// This is a VERTICAL mirror; to mirror the frequency axis use
+    /// `mirrorSpectrum`.
+    Q_PROPERTY(bool mirrorBars MEMBER m_mirrorBars NOTIFY changed)
+    /// Reflects the FREQUENCY axis: the band order is repeated back on itself so
+    /// the spectrum reads symmetrically. This is the symmetric skyline look, and
+    /// is independent of `orientation`.
     Q_PROPERTY(bool mirrorSpectrum MEMBER m_mirrorSpectrum NOTIFY changed)
+    /// Which end of the mirrored spectrum meets in the centre: false puts the
+    /// lowest band at both outer edges (treble meeting in the middle), true
+    /// flips it. Only meaningful with `mirrorSpectrum`.
+    Q_PROPERTY(bool bassInner MEMBER m_bassInner NOTIFY changed)
     /// Radial only: hole size as a fraction of the layer's smaller dimension.
     Q_PROPERTY(qreal innerRadius MEMBER m_innerRadius NOTIFY changed)
+    /// Linear only: bends the base line into a circular arc subtending
+    /// `|arc| * 180` degrees. 0 is a straight line, positive bows the middle up
+    /// (a dome), negative bows it down (a bowl).
+    Q_PROPERTY(qreal arc MEMBER m_arc NOTIFY changed)
+    /// Bars taper to fill their angular slot at every radius instead of staying
+    /// constant-width, so an arced spectrum has no wedge gaps. Only meaningful
+    /// with `arc`.
+    Q_PROPERTY(bool barsMatchArc MEMBER m_barsMatchArc NOTIFY changed)
     Q_PROPERTY(bool growUpward MEMBER m_growUpward NOTIFY changed)
 
     // --- Colour ------------------------------------------------------------
@@ -294,13 +313,17 @@ private:
     int m_providerId = 0;
     int m_inactiveEdgeBars = 0;
     bool m_mirrorSpectrum = false;
+    bool m_bassInner = false;
     qreal m_barWidthRatio = 0.65;
     qreal m_cornerRadius = 2.0;
     qreal m_minHeight = 0.005;
     qreal m_maxHeight = 0.8;
 
     QString m_orientation = QStringLiteral("linear");
+    bool m_mirrorBars = false;
     qreal m_innerRadius = 0.35;
+    qreal m_arc = 0.0;
+    bool m_barsMatchArc = false;
     bool m_growUpward = true;
 
     QString m_colorMode = QStringLiteral("gradient");

@@ -155,7 +155,7 @@ per thing drawing it.
 | Type | Reacts to audio | Notable properties |
 |---|---|---|
 | `audio` | provides the data | see above. Draws nothing |
-| `bars` | fed by a provider | width, corner radius, min/max height, linear / mirrored / radial, **mirror spectrum** (bass at both edges, treble meeting in the centre), solid / gradient / spectrum colour, reactive brightness |
+| `bars` | fed by a provider | width, corner radius, min/max height, linear / radial, **mirror bars** (each bar grows both ways from its base), **arc** (linear only: bows the base line into a dome or a bowl, optionally tapering the bars to fill the fan), **mirror spectrum** (reflects the frequency axis, with bass at the edges or in the centre), solid / gradient / spectrum colour, reactive brightness |
 | `particles` | yes, own analyzer | driving band (bass/mid/treble), idle and reactive emission rates, colour, size, lifetime, speed, direction, spread, gravity |
 | `text` | no | text, font, size (relative to canvas height), colour, alignment |
 | `background` | no | colour, image, fill mode |
@@ -202,7 +202,7 @@ explicitly. If particles ever vanish again, check that first — the system itse
 ## Status
 
 Implemented: audio import and playback (mp3/wav/flac/aac/m4a/ogg), live FFT preview, EQ bar layer
-(linear / mirrored / radial), audio-reactive particle layer, background and text layers, the layer
+(linear or radial, mirrored and arced), audio-reactive particle layer, background and text layers, the layer
 stack with reordering and visibility, `add`/`screen` blend modes, live property editing, project
 save/load, a headless `--render` mode, and export to MP4 (H.264) and MOV (ProRes 422 HQ) with
 resolution and frame-rate settings, optional audio, progress, ETA and cancellation.
