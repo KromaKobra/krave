@@ -26,6 +26,10 @@ TextField {
     verticalAlignment: TextInput.AlignVCenter
     selectByMouse: true
 
+    // Callers apply on every keystroke, so Enter has nothing left to commit and
+    // just steps out of the field.
+    onAccepted: control.focus = false
+
     cursorDelegate: Rectangle {
         width: 1
         color: Theme.accent

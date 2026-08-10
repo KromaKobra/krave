@@ -16,10 +16,12 @@ ColumnLayout {
     property string label: ""
     property QtObject target: null
     property string propertyName: ""
+    /// The slider's range. A suggestion rather than a cap: a typed value may sit
+    /// outside it, and the handle simply pins at whichever end it ran past.
     property real from: 0
     property real to: 1
+    /// The granularity of a drag, an arrow key and a wheel notch alike.
     property real stepSize: 0.01
-    property int decimals: 2
     /// Where the slider's fill starts; 0 on a signed parameter puts it mid-track.
     property real origin: from
     /// Suffix shown inside the number field: dB, Hz, ms, %.
@@ -38,6 +40,17 @@ ColumnLayout {
     function apply(v) {
         if (target && propertyName)
             target[propertyName] = v
+    }
+
+    /// Land a dragged value on the step grid. The number field shows what is stored
+    /// verbatim, so a drag has to produce a number worth reading: toPrecision(15)
+    /// clears the float noise the multiply leaves behind, making 7 steps of 0.01
+    /// read as 0.07 rather than 0.07000000000000001. Typed values skip this and
+    /// keep every digit they were given.
+    function snap(v) {
+        if (stepSize <= 0)
+            return v
+        return Number((from + Math.round((v - from) / stepSize) * stepSize).toPrecision(15))
     }
 
     Layout.fillWidth: true
@@ -59,9 +72,6 @@ ColumnLayout {
 
         NumberField {
             value: root.value
-            decimals: root.decimals
-            from: root.from
-            to: root.to
             unit: root.unit
             onEdited: (v) => root.apply(v)
         }
@@ -73,8 +83,9 @@ ColumnLayout {
         to: root.to
         origin: root.origin
         stepSize: root.stepSize
-        // Track the model, but do not fight the user while they drag.
+        // Track the model, but do not fight the user while they drag. A typed value
+        // beyond the range is clamped here for display only; root.value keeps it.
         value: root.value
-        onMoved: root.apply(value)
+        onMoved: root.apply(root.snap(value))
     }
 }

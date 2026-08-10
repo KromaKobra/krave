@@ -74,7 +74,6 @@ AppDialog {
                     NumberField {
                         Layout.fillWidth: true
                         value: exportController.width
-                        decimals: 0
                         from: 16; to: 7680
                         unit: "px"
                         onEdited: (v) => exportController.width = Math.round(v)
@@ -90,7 +89,6 @@ AppDialog {
                     NumberField {
                         Layout.fillWidth: true
                         value: exportController.height
-                        decimals: 0
                         from: 16; to: 4320
                         unit: "px"
                         onEdited: (v) => exportController.height = Math.round(v)
@@ -126,7 +124,6 @@ AppDialog {
 
                     NumberField {
                         value: exportController.fps
-                        decimals: 0
                         from: 1; to: 240
                         unit: "fps"
                         onEdited: (v) => exportController.fps = Math.round(v)
@@ -149,7 +146,7 @@ AppDialog {
                 label: qsTr("Quality (lower CRF is better)")
                 target: exportController
                 propertyName: "quality"
-                from: 12; to: 30; stepSize: 1; decimals: 0
+                from: 12; to: 30; stepSize: 1
             }
 
             ToggleRow {

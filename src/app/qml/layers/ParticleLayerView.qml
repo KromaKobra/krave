@@ -56,13 +56,16 @@ LayerFrame {
             width: frame.box.width
             height: frame.box.height
 
+            // The rates can be typed past the end of their sliders, and a project
+            // file can carry anything at all, so hold the spawn rate to something
+            // the particle system can survive rather than trusting the number.
             emitRate: {
                 if (!frame.layerData)
                     return 0
-                return Math.max(0, frame.layerData.baseRate
-                                   + frame.layerData.reactiveRate * frame.level)
+                return Math.min(5000, Math.max(0, frame.layerData.baseRate
+                                                  + frame.layerData.reactiveRate * frame.level))
             }
-            lifeSpan: frame.layerData ? frame.layerData.lifeSpan : 1600
+            lifeSpan: frame.layerData ? Math.max(1, frame.layerData.lifeSpan) : 1600
             lifeSpanVariation: lifeSpan * 0.3
             size: frame.layerData ? frame.layerData.particleSize : 14
             sizeVariation: size * 0.5

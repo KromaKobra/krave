@@ -204,7 +204,7 @@ Rectangle {
                 }
                 ParamSlider {
                     label: qsTr("Rotation"); target: root.selected; propertyName: "layerRotation"
-                    from: -180; to: 180; stepSize: 1; decimals: 0; unit: "°"
+                    from: -180; to: 180; stepSize: 1; unit: "°"
                 }
 
                 // ------------------------------------------------------- bars
@@ -270,11 +270,11 @@ Rectangle {
                     ParamSlider {
                         label: qsTr("Corner radius"); target: root.selected
                         propertyName: "cornerRadius"
-                        from: 0; to: 24; stepSize: 0.5; decimals: 1; unit: "px"
+                        from: 0; to: 24; stepSize: 0.5; unit: "px"
                     }
                     ParamSlider {
                         label: qsTr("Min height"); target: root.selected; propertyName: "minHeight"
-                        from: 0; to: 0.5; decimals: 3
+                        from: 0; to: 0.5; stepSize: 0.001
                     }
                     ParamSlider {
                         label: qsTr("Max height"); target: root.selected; propertyName: "maxHeight"
@@ -344,27 +344,27 @@ Rectangle {
 
                     ParamSlider {
                         label: qsTr("Band count"); target: root.selected; propertyName: "bandCount"
-                        from: 4; to: 256; stepSize: 1; decimals: 0
+                        from: 4; to: 256; stepSize: 1
                     }
                     ParamSlider {
                         label: qsTr("Window"); target: root.selected; propertyName: "windowMs"
-                        from: 10; to: 400; stepSize: 5; decimals: 0; unit: "ms"
+                        from: 10; to: 400; stepSize: 5; unit: "ms"
                     }
                     ParamSlider {
                         label: qsTr("Windows averaged"); target: root.selected
                         propertyName: "averageCount"
-                        from: 1; to: 16; stepSize: 1; decimals: 0
+                        from: 1; to: 16; stepSize: 1
                     }
 
                     SectionHeader { text: qsTr("Frequency") }
 
                     ParamSlider {
                         label: qsTr("Low cut"); target: root.selected; propertyName: "minHz"
-                        from: 10; to: 500; stepSize: 5; decimals: 0; unit: "Hz"
+                        from: 10; to: 500; stepSize: 5; unit: "Hz"
                     }
                     ParamSlider {
                         label: qsTr("High cut"); target: root.selected; propertyName: "maxHz"
-                        from: 200; to: 22000; stepSize: 100; decimals: 0; unit: "Hz"
+                        from: 200; to: 22000; stepSize: 100; unit: "Hz"
                     }
                     ParamSlider {
                         label: qsTr("Linear ←→ log spacing"); target: root.selected
@@ -385,7 +385,7 @@ Rectangle {
                     ParamSlider {
                         visible: root.selected && root.selected.amplitudeMode === "linear"
                         label: qsTr("Gain"); target: root.selected; propertyName: "linearGain"
-                        from: 0.5; to: 60; stepSize: 0.5; decimals: 1
+                        from: 0.5; to: 60; stepSize: 0.5
                     }
                     ParamSlider {
                         label: qsTr("Low-frequency level"); target: root.selected
@@ -403,7 +403,7 @@ Rectangle {
                     ParamSlider {
                         label: qsTr("Treble lift"); target: root.selected
                         propertyName: "tiltDbPerOctave"
-                        from: 0; to: 9; stepSize: 0.25; decimals: 2; unit: "dB"
+                        from: 0; to: 9; stepSize: 0.25; unit: "dB"
                     }
                     ParamSlider {
                         label: qsTr("Per-band auto-gain"); target: root.selected
@@ -414,19 +414,19 @@ Rectangle {
                         visible: root.selected && root.selected.bandNormalization > 0
                         label: qsTr("Auto-gain adapt"); target: root.selected
                         propertyName: "normalizationTau"
-                        from: 0.2; to: 10; stepSize: 0.1; decimals: 1; unit: "s"
+                        from: 0.2; to: 10; stepSize: 0.1; unit: "s"
                     }
                     ParamSlider {
                         label: qsTr("Floor"); target: root.selected; propertyName: "floorDb"
-                        from: -100; to: -20; stepSize: 1; decimals: 0; unit: "dB"
+                        from: -100; to: -20; stepSize: 1; unit: "dB"
                     }
                     ParamSlider {
                         label: qsTr("Ceiling"); target: root.selected; propertyName: "ceilingDb"
-                        from: -40; to: 6; stepSize: 1; decimals: 0; unit: "dB"
+                        from: -40; to: 6; stepSize: 1; unit: "dB"
                     }
                     ParamSlider {
                         label: qsTr("Gate"); target: root.selected; propertyName: "gateDb"
-                        from: 0; to: 24; stepSize: 1; decimals: 0; unit: "dB"
+                        from: 0; to: 24; stepSize: 1; unit: "dB"
                     }
                     SegmentedControl {
                         label: qsTr("Scaling curve"); target: root.selected
@@ -456,17 +456,17 @@ Rectangle {
                     ParamSlider {
                         visible: root.selected && root.selected.smoothingMode === "symmetric"
                         label: qsTr("Smoothing"); target: root.selected; propertyName: "smoothMs"
-                        from: 0; to: 400; stepSize: 5; decimals: 0; unit: "ms"
+                        from: 0; to: 400; stepSize: 5; unit: "ms"
                     }
                     ParamSlider {
                         visible: root.selected && root.selected.smoothingMode !== "symmetric"
                         label: qsTr("Attack"); target: root.selected; propertyName: "attackMs"
-                        from: 0; to: 300; stepSize: 1; decimals: 0; unit: "ms"
+                        from: 0; to: 300; stepSize: 1; unit: "ms"
                     }
                     ParamSlider {
                         visible: root.selected && root.selected.smoothingMode !== "symmetric"
                         label: qsTr("Decay"); target: root.selected; propertyName: "decayMs"
-                        from: 10; to: 1500; stepSize: 5; decimals: 0; unit: "ms"
+                        from: 10; to: 1500; stepSize: 5; unit: "ms"
                     }
                     ParamSlider {
                         label: qsTr("Neighbour smoothing"); target: root.selected
@@ -476,7 +476,7 @@ Rectangle {
                     ParamSlider {
                         label: qsTr("Resting level"); target: root.selected
                         propertyName: "floorLevel"
-                        from: 0; to: 0.3; decimals: 3
+                        from: 0; to: 0.3; stepSize: 0.001
                     }
                 }
 
@@ -509,7 +509,7 @@ Rectangle {
 
                     ParamSlider {
                         label: qsTr("Font size"); target: root.selected; propertyName: "fontScale"
-                        from: 0.01; to: 0.3; decimals: 3
+                        from: 0.01; to: 0.3; stepSize: 0.001
                     }
                     SegmentedControl {
                         label: qsTr("Alignment"); target: root.selected; propertyName: "alignment"
@@ -547,42 +547,42 @@ Rectangle {
                     }
                     ParamSlider {
                         label: qsTr("Idle rate"); target: root.selected; propertyName: "baseRate"
-                        from: 0; to: 400; stepSize: 5; decimals: 0; unit: "/s"
+                        from: 0; to: 400; stepSize: 5; unit: "/s"
                     }
                     ParamSlider {
                         label: qsTr("Reactive rate"); target: root.selected
                         propertyName: "reactiveRate"
-                        from: 0; to: 1500; stepSize: 10; decimals: 0; unit: "/s"
+                        from: 0; to: 1500; stepSize: 10; unit: "/s"
                     }
                     ParamSlider {
                         label: qsTr("Lifetime"); target: root.selected; propertyName: "lifeSpan"
-                        from: 200; to: 6000; stepSize: 50; decimals: 0; unit: "ms"
+                        from: 200; to: 6000; stepSize: 50; unit: "ms"
                     }
 
                     SectionHeader { text: qsTr("Motion") }
 
                     ParamSlider {
                         label: qsTr("Speed"); target: root.selected; propertyName: "speed"
-                        from: 0; to: 900; stepSize: 10; decimals: 0
+                        from: 0; to: 900; stepSize: 10
                     }
                     ParamSlider {
                         label: qsTr("Direction"); target: root.selected; propertyName: "angle"
-                        from: 0; to: 360; stepSize: 1; decimals: 0; unit: "°"
+                        from: 0; to: 360; stepSize: 1; unit: "°"
                     }
                     ParamSlider {
                         label: qsTr("Spread"); target: root.selected; propertyName: "angleSpread"
-                        from: 0; to: 180; stepSize: 1; decimals: 0; unit: "°"
+                        from: 0; to: 180; stepSize: 1; unit: "°"
                     }
                     ParamSlider {
                         label: qsTr("Gravity"); target: root.selected; propertyName: "gravity"
-                        from: -500; to: 900; stepSize: 10; decimals: 0
+                        from: -500; to: 900; stepSize: 10
                     }
 
                     SectionHeader { text: qsTr("Appearance") }
 
                     ParamSlider {
                         label: qsTr("Size"); target: root.selected; propertyName: "particleSize"
-                        from: 1; to: 80; stepSize: 1; decimals: 0; unit: "px"
+                        from: 1; to: 80; stepSize: 1; unit: "px"
                     }
                     ColorField {
                         label: qsTr("Colour"); target: root.selected; propertyName: "color"

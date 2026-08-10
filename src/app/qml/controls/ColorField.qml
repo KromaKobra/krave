@@ -92,14 +92,19 @@ ColumnLayout {
                     text = root.value.toString().toUpperCase()
                 }
 
+                /// Applies as soon as the text is a whole colour, which keeps the
+                /// canvas live without painting it with half-typed hex.
+                function apply() {
+                    const hexText = text.trim()
+                    if (/^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hexText))
+                        root.apply(hexText.charAt(0) === "#" ? hexText : "#" + hexText)
+                }
+
                 Component.onCompleted: reformat()
                 onActiveFocusChanged: if (!activeFocus) reformat()
-                onEditingFinished: {
-                    const parsed = /^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(text.trim())
-                    if (parsed)
-                        root.apply(text.trim().charAt(0) === "#" ? text.trim() : "#" + text.trim())
-                    reformat()
-                }
+                onTextEdited: apply()
+                onAccepted: hex.focus = false
+                onEditingFinished: { apply(); reformat() }
 
                 Connections {
                     target: root
