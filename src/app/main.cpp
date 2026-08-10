@@ -83,6 +83,11 @@ int main(int argc, char *argv[])
         spectrumEngine.setBuffer(audioEngine.buffer());
     });
 
+    // A jump is not a continuation: drop the smoothing envelopes so the old
+    // position's spectrum does not bleed into the new one.
+    QObject::connect(&audioEngine, &mv::AudioEngine::seeked,
+                     &spectrumEngine, &mv::SpectrumEngine::reset);
+
     project.newProject();
 
     QQmlApplicationEngine engine;

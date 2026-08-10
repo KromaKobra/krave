@@ -94,10 +94,12 @@ AudioEngine::AudioEngine(QObject *parent)
         Q_EMIT loadProgressChanged();
     });
 
+    // Queued: playbackFinished fires from inside readData(), and stop() tears down
+    // the very sink and device that are mid-pull. Let the read return first.
     connect(m_device, &PcmCursorDevice::playbackFinished, this, [this] {
         // Bounce back to the start and idle, the way a transport normally behaves.
         stop();
-    });
+    }, Qt::QueuedConnection);
 
     // Drives the playhead readout. The visualizer has its own tick.
     m_positionTimer.setInterval(16);
@@ -162,6 +164,7 @@ void AudioEngine::onDecoded(const mv::AudioBuffer &buffer, const QString &filePa
     m_buffer = buffer;
     m_trackPath = filePath;
     m_device->setBuffer(m_buffer);
+    m_playheadFrame = 0;
 
     QVector<float> mins;
     QVector<float> maxs;
@@ -180,6 +183,8 @@ void AudioEngine::onDecoded(const mv::AudioBuffer &buffer, const QString &filePa
 
 void AudioEngine::rebuildSink()
 {
+    m_format = {};
+    m_outputDevice = {};
     if (m_sink) {
         m_sink->stop();
         m_sink.reset();
@@ -201,12 +206,29 @@ void AudioEngine::rebuildSink()
         return;
     }
 
-    m_sink = std::make_unique<QAudioSink>(output, format);
+    // Validated here, once, so the per-run createSink() below stays silent.
+    m_outputDevice = output;
+    m_format = format;
+    createSink();
+}
+
+bool AudioEngine::createSink()
+{
+    if (m_sink) {
+        m_sink->stop();
+        m_sink.reset();
+    }
+    if (!m_format.isValid() || m_outputDevice.isNull())
+        return false;
+
+    m_sink = std::make_unique<QAudioSink>(m_outputDevice, m_format);
     m_sink->setVolume(m_volume);
+    m_sink->setBufferSize(m_format.bytesForDuration(kSinkBufferUSecs));
 
     connect(m_sink.get(), &QAudioSink::stateChanged, this, [this](QAudio::State) {
         Q_EMIT playingChanged();
     });
+    return true;
 }
 
 bool AudioEngine::isPlaying() const
@@ -214,44 +236,73 @@ bool AudioEngine::isPlaying() const
     return m_sink && m_sink->state() == QAudio::ActiveState;
 }
 
+qint64 AudioEngine::audibleFrame() const
+{
+    if (!m_sink || m_sink->state() != QAudio::ActiveState)
+        return qBound<qint64>(0, m_playheadFrame, m_buffer.frameCount());
+
+    // Audio leaves the device in real time, so a wall clock anchored at the start
+    // of the run tracks what is being heard. The sink's own byte counters do not:
+    // bytesFree() reads zero immediately after start(), which makes the whole
+    // buffer look like unplayed audio and drags the playhead backwards for the
+    // first few hundred milliseconds of every run.
+    const qint64 elapsed =
+        m_playClock.nsecsElapsed() * qint64(m_buffer.sampleRate()) / 1'000'000'000LL;
+    // Never claim to be past what has actually been read out of the buffer.
+    const qint64 frame = std::min(m_startFrame + elapsed, m_device->cursorFrame());
+    return qBound<qint64>(0, frame, m_buffer.frameCount());
+}
+
+void AudioEngine::resetDeviceTo(qint64 frame)
+{
+    // Destroy the sink rather than reset() it. reset() stops the stream and drops
+    // what Qt still holds, but audio already handed down to the platform stream
+    // survives and is heard as a burst from the old position on the next start.
+    // Closing the device is the only thing that reliably discards it.
+    if (m_sink) {
+        m_sink->stop();
+        m_sink.reset();
+    }
+
+    // Close and reopen so QIODevice's own read buffer goes with it; repositioning
+    // the cursor alone would leave pre-seek bytes sitting a layer above us.
+    m_device->close();
+    m_device->setCursorFrame(frame);
+    m_device->open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+}
+
+void AudioEngine::startSinkAt(qint64 frame)
+{
+    resetDeviceTo(frame);
+    if (!createSink())
+        return;
+
+    m_startFrame = frame;
+    m_playClock.start();
+    m_sink->start(m_device);
+    m_positionTimer.start();
+}
+
 double AudioEngine::position() const
 {
     if (m_buffer.isEmpty())
         return 0.0;
-
-    // The cursor is where the device has been READ to, which runs ahead of what
-    // the speakers have actually produced by however much the sink has buffered.
-    // Subtract that so the playhead lines up with what the user is hearing.
-    qint64 frame = m_device->cursorFrame();
-    if (m_sink && m_sink->state() == QAudio::ActiveState) {
-        const qint64 pendingBytes = m_sink->bufferSize() - m_sink->bytesFree();
-        const qint64 frameBytes = qint64(m_buffer.channels()) * qint64(sizeof(float));
-        if (frameBytes > 0)
-            frame -= pendingBytes / frameBytes;
-    }
-
-    return qBound(0.0, m_buffer.timeForFrame(std::max<qint64>(0, frame)), duration());
+    return qBound(0.0, m_buffer.timeForFrame(audibleFrame()), duration());
 }
 
 void AudioEngine::play()
 {
-    if (m_buffer.isEmpty() || !m_sink)
+    // The sink only exists while a run is in flight; the validated format is what
+    // says whether playback is possible at all.
+    if (m_buffer.isEmpty() || !m_format.isValid())
         return;
-    if (m_sink->state() == QAudio::ActiveState)
+    if (m_sink && m_sink->state() == QAudio::ActiveState)
         return;
 
-    if (m_device->atEnd())
-        m_device->setCursorFrame(0);
+    if (m_playheadFrame >= m_buffer.frameCount())
+        m_playheadFrame = 0;
 
-    if (!m_device->isOpen())
-        m_device->open(QIODevice::ReadOnly);
-
-    if (m_sink->state() == QAudio::SuspendedState)
-        m_sink->resume();
-    else
-        m_sink->start(m_device);
-
-    m_positionTimer.start();
+    startSinkAt(m_playheadFrame);
     Q_EMIT playingChanged();
 }
 
@@ -259,7 +310,11 @@ void AudioEngine::pause()
 {
     if (!m_sink || m_sink->state() != QAudio::ActiveState)
         return;
-    m_sink->suspend();
+
+    // Latch what was being heard before tearing the sink down; that value is what
+    // the next run starts from, so pause/resume is seamless.
+    m_playheadFrame = audibleFrame();
+    resetDeviceTo(m_playheadFrame);
     m_positionTimer.stop();
     Q_EMIT playingChanged();
     Q_EMIT positionChanged();
@@ -272,12 +327,12 @@ void AudioEngine::togglePlay()
 
 void AudioEngine::stop()
 {
-    if (m_sink)
-        m_sink->stop();
+    m_playheadFrame = 0;
+    resetDeviceTo(0);
     m_positionTimer.stop();
-    m_device->setCursorFrame(0);
     Q_EMIT playingChanged();
     Q_EMIT positionChanged();
+    Q_EMIT seeked();
 }
 
 void AudioEngine::seek(double seconds)
@@ -285,27 +340,18 @@ void AudioEngine::seek(double seconds)
     if (m_buffer.isEmpty())
         return;
 
-    const bool wasPlaying = isPlaying();
-    const qint64 frame = qBound<qint64>(0, m_buffer.frameForTime(seconds), m_buffer.frameCount());
+    m_playheadFrame = qBound<qint64>(0, m_buffer.frameForTime(seconds), m_buffer.frameCount());
 
-    if (m_sink) {
-        // reset() drops whatever is already queued in the sink; without it the
-        // old audio keeps playing for the length of the buffer after a seek.
-        m_sink->stop();
-        m_sink->reset();
-    }
-
-    m_device->setCursorFrame(frame);
-
-    if (wasPlaying) {
-        if (!m_device->isOpen())
-            m_device->open(QIODevice::ReadOnly);
-        m_sink->start(m_device);
-        m_positionTimer.start();
-    }
+    // Seeking while stopped or paused costs nothing but a cursor move; the sink is
+    // only restarted when it was already running.
+    if (m_sink && m_sink->state() == QAudio::ActiveState)
+        startSinkAt(m_playheadFrame);
+    else
+        resetDeviceTo(m_playheadFrame);
 
     Q_EMIT playingChanged();
     Q_EMIT positionChanged();
+    Q_EMIT seeked();
 }
 
 void AudioEngine::setVolume(qreal v)

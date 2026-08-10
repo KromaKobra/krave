@@ -274,15 +274,36 @@ Rectangle {
             }
 
             MouseArea {
+                id: scrubArea
+
                 anchors.fill: parent
                 enabled: root.ready
                 cursorShape: root.ready ? Qt.PointingHandCursor : Qt.ArrowCursor
-                // Scrub continuously while dragging, not just on release.
-                onPressed: (mouse) => audioEngine.seek(strip.xToTime(mouse.x))
+
+                // Scrubbing is silent: stop the sink once on press, move the playhead
+                // freely while dragging, and pick playback back up on release. Seeking
+                // while paused touches no audio device, so the drag stays smooth.
+                property bool resumeAfterScrub: false
+
+                function finishScrub() {
+                    if (!resumeAfterScrub)
+                        return
+                    resumeAfterScrub = false
+                    audioEngine.play()
+                }
+
+                onPressed: (mouse) => {
+                    resumeAfterScrub = audioEngine.playing
+                    if (resumeAfterScrub)
+                        audioEngine.pause()
+                    audioEngine.seek(strip.xToTime(mouse.x))
+                }
                 onPositionChanged: (mouse) => {
                     if (pressed)
                         audioEngine.seek(strip.xToTime(mouse.x))
                 }
+                onReleased: scrubArea.finishScrub()
+                onCanceled: scrubArea.finishScrub()
             }
         }
     }

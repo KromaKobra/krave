@@ -8,7 +8,6 @@
 
 **Playback**
 
-- Fix play/pause glitches. When paused at a certain timestamp, and then playing shifts the timestamp back less than a second. Moving the playhead and then playing starts with a second of where it was previously before switching.
 - Remove stop button (back arrow does the same thing and is more intuitive), and add frame controls. I don't know if GUI frame controls are important, but pressing < and > should move forward and back a frame, while holding ctrl for example moves by 5 seconds.
 - Display the framerate of the video during playback. Cap the framerate at project framerate.
 - Add speed and pitch modifiers to audio. (Visualizers are commonly used in Nightcore)
