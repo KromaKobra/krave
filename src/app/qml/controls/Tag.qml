@@ -1,6 +1,6 @@
 import QtQuick
 
-import MusicVisualizer
+import krave
 
 // A small tinted label: resolutions, frame rates, layer kinds, file names.
 Rectangle {

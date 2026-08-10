@@ -3,7 +3,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // A colour bound to a QColor property.
 //

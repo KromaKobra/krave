@@ -21,7 +21,7 @@ ApplicationWindow {
     visible: true
     color: Theme.bg
 
-    title: qsTr("Music Visualizer — %1%2")
+    title: qsTr("Krave — %1%2")
         .arg(project.displayName)
         .arg(project.modified ? " •" : "")
 

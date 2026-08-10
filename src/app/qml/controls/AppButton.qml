@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // The one button in the app.
 //

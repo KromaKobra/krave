@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // A dropdown bound to a string-valued property on a backend object. Used where
 // the options are too many or too wordy for a segmented control.

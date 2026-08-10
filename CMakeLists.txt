@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(MusicVisualizer
-    VERSION 0.1.0
+project(krave
+    VERSION 0.0.0
     DESCRIPTION "Layered, frequency-reactive music visualizer with ffmpeg video export"
     LANGUAGES CXX)
 
@@ -40,6 +40,6 @@ if(MV_BUILD_TESTS)
     endif()
 endif()
 
-message(STATUS "MusicVisualizer ${PROJECT_VERSION}")
+message(STATUS "krave ${PROJECT_VERSION}")
 message(STATUS "  Qt        : ${Qt6_VERSION} (${QT6_INSTALL_PREFIX})")
 message(STATUS "  Compiler  : ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")

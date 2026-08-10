@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 
 // A numeric layer parameter: name on the left, exact value on the right, slider
 // underneath.

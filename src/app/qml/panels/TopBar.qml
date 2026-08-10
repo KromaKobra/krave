@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 import "../controls"
 
 // The application bar: identity on the left, document actions on the right.
@@ -54,7 +54,7 @@ Rectangle {
             }
 
             Text {
-                text: qsTr("Music Visualizer")
+                text: qsTr("Krave")
                 color: Theme.text
                 font.family: Theme.fontFamily
                 font.pixelSize: 14

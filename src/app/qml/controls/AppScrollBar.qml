@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // A scrollbar that stays out of the way: a thin neutral thumb on no track, which
 // thickens while it is being used. Works in either orientation, so the canvas

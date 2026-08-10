@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 
-import MusicVisualizer
+import krave
 
 // Shared modal chrome: the top elevation in the system, which on a dark ground
 // means a hairline edge and ambient darkness rather than a stack of shadows.

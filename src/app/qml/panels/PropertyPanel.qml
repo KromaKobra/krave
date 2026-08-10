@@ -13,7 +13,7 @@ import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
-import MusicVisualizer
+import krave
 import "../controls"
 
 Rectangle {

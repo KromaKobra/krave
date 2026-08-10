@@ -80,5 +80,5 @@ if ($Test) {
 
 if ($Run) {
     $env:PATH = "$($qtPrefix -replace '/', '\')\bin;$env:PATH"
-    & (Join-Path $buildDir 'bin/musicvisualizer.exe')
+    & (Join-Path $buildDir 'bin/krave.exe')
 }

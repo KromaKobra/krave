@@ -72,14 +72,14 @@ Item {
     Component {
         id: addBlend
         ShaderEffect {
-            fragmentShader: "qrc:/qt/qml/MusicVisualizer/shaders/blend_add.frag.qsb"
+            fragmentShader: "qrc:/qt/qml/krave/shaders/blend_add.frag.qsb"
         }
     }
 
     Component {
         id: screenBlend
         ShaderEffect {
-            fragmentShader: "qrc:/qt/qml/MusicVisualizer/shaders/blend_screen.frag.qsb"
+            fragmentShader: "qrc:/qt/qml/krave/shaders/blend_screen.frag.qsb"
         }
     }
 }

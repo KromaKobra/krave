@@ -41,7 +41,7 @@ LayerFrame {
             // ImageParticle's default built-in sprite (qrc:///particleresources/
             // glowdot.png) silently fails to load in this Qt build -- particles
             // simulate but draw nothing -- so the app ships its own.
-            source: "qrc:/qt/qml/MusicVisualizer/assets/glowdot.png"
+            source: "qrc:/qt/qml/krave/assets/glowdot.png"
             color: frame.layerData ? frame.layerData.color : "white"
             colorVariation: 0.25
             entryEffect: ImageParticle.Scale
