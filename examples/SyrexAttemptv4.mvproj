@@ -1,0 +1,98 @@
+{
+    "canvas": {
+        "color": "#ff000000",
+        "height": 720,
+        "width": 1280
+    },
+    "format": "music-visualizer-project",
+    "layers": [
+        {
+            "props": {
+                "amplitudeMode": "linear",
+                "attackMs": 2,
+                "averageCount": 1,
+                "bandCount": 40,
+                "bandMeasure": "rms",
+                "bandNormalization": 0,
+                "blendMode": "normal",
+                "ceilingDb": -4,
+                "decayMs": 75,
+                "floorDb": -78,
+                "floorLevel": 0,
+                "gamma": 0.35,
+                "gateDb": 0,
+                "hzLinearFactor": 1,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "linearFloor": 0,
+                "linearGain": 0.45,
+                "lowFreqMagnitude": 1,
+                "maxHz": 238,
+                "minHz": -72,
+                "name": "Audio provider",
+                "normalizationTau": 3,
+                "posX": 0.5,
+                "posY": 0.5,
+                "scalingCurve": "log",
+                "sizeH": 1,
+                "sizeW": 1,
+                "smoothMs": 45,
+                "smoothingMode": "attackDecay",
+                "spatialSmoothing": 0.44,
+                "tiltDbPerOctave": 0,
+                "windowMs": 160
+            },
+            "type": "audio"
+        },
+        {
+            "props": {
+                "blendMode": "normal",
+                "color": "#ff121220",
+                "fillMode": "crop",
+                "imageSource": "",
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "Background",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeH": 1,
+                "sizeW": 1
+            },
+            "type": "background"
+        },
+        {
+            "props": {
+                "arc": 0.15999999999999992,
+                "barWidthRatio": 0.73,
+                "barsMatchArc": false,
+                "bassInner": false,
+                "blendMode": "normal",
+                "colorA": "#ffb5abfc",
+                "colorB": "#ffffffff",
+                "colorMode": "solid",
+                "cornerRadius": 24,
+                "growUpward": true,
+                "innerRadius": 0.35,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "maxHeight": 0.6000000000000001,
+                "minHeight": 0.01,
+                "mirrorBars": true,
+                "mirrorSpectrum": true,
+                "name": "Spectrum",
+                "orientation": "linear",
+                "posX": 0.5,
+                "posY": 0.45,
+                "providerId": 0,
+                "reactiveBrightness": 0,
+                "sizeH": 1.1,
+                "sizeW": 1.29
+            },
+            "type": "bars"
+        }
+    ],
+    "version": 2
+}

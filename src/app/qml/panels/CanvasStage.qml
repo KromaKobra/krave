@@ -169,4 +169,61 @@ Item {
             }
         }
     }
+
+    // ---------------------------------------------------------- fps readout
+    //
+    // Measured from frames the scene graph actually presented, not from the
+    // spectrum tick -- the point is to see when rendering fails to keep up with
+    // the 16 ms preview cadence. Sits in the stage's corner rather than the
+    // canvas frame's so it stays put when the canvas is zoomed or scrolled.
+    Item {
+        id: fpsMeter
+
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        anchors.margins: Theme.space3
+        implicitWidth: fpsPill.width
+        implicitHeight: fpsPill.height
+
+        property int frames: 0
+        property real fps: 0
+
+        FrameAnimation {
+            running: true
+            onTriggered: fpsMeter.frames++
+        }
+
+        // Counting over a window rather than inverting a single frame time: one
+        // long frame should not make the number leap about.
+        Timer {
+            interval: 500
+            repeat: true
+            running: true
+            onTriggered: {
+                fpsMeter.fps = fpsMeter.frames * 1000 / interval
+                fpsMeter.frames = 0
+            }
+        }
+
+        Rectangle {
+            id: fpsPill
+
+            width: fpsLabel.implicitWidth + Theme.space3 * 2
+            height: fpsLabel.implicitHeight + Theme.space1 * 2
+            radius: Theme.radiusSm
+            color: Theme.withAlpha(Theme.bg, 0.72)
+            border.width: 1
+            border.color: Theme.divider
+
+            Text {
+                id: fpsLabel
+
+                anchors.centerIn: parent
+                text: qsTr("%1 fps").arg(Math.round(fpsMeter.fps))
+                color: Theme.textMuted
+                font.family: Theme.monoFamily
+                font.pixelSize: Theme.fontSizeKicker
+            }
+        }
+    }
 }

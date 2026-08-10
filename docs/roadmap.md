@@ -9,10 +9,11 @@
 **Playback**
 
 - Remove stop button (back arrow does the same thing and is more intuitive), and add frame controls. I don't know if GUI frame controls are important, but pressing < and > should move forward and back a frame, while holding ctrl for example moves by 5 seconds.
-- Display the framerate of the video during playback. Cap the framerate at project framerate.
+- Be sure that the SpectrumEngine is producing data for every frame of playback. Cap the framerate at project framerate. (Export framerate can be different).
 - Add speed and pitch modifiers to audio. (Visualizers are commonly used in Nightcore)
 
 **Timeline**
+
 - Allow the timestamp to be click to edit manually.
 - Remove the Import Audio button, and make the import occur when the current filename is pressed on the top right of the timeline. If no audio exists, the filename is replaced with an import icon.
 - When audio is loaded, there is a circle arrow button that appears to the left of the filename which when clicked unloads any imported audio.
@@ -24,9 +25,7 @@
 
 **Value Controls**
 
-- Modifying a value, whether that be by dragging a slider, or typing in a value into a text box, immediately affects the canvas in real time. Clicking off of a value entry or pressing enter unfocuses the value entry and the setting was already set before that happened.
-- Values can be as precise as C++ allows a floating point digit. It doesn't round unless it needs to.
-- To the right of each name is a hidden info icon that only appers when the user is hovering their mouse over a rectangle that covers the name and the icon itself. If the icon hovered over, a description pops out about what that setting means and does. Maybe add a feature that when the icon is pressed, then a window pops up with a detailed description of the setting.
+- Clicking off of a value entry should unfocus the value entry.
 - Values can be linked to other values with expressions like in Davinci Resolve.
 - Values can be linked to audio provider bands. Sometimes audio providers meant for a value will just have one band.
 
