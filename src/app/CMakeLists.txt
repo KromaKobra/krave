@@ -33,6 +33,7 @@ set(app_qml_files
     qml/controls/EnumCombo.qml
     qml/controls/IconButton.qml
     qml/controls/NumberField.qml
+    qml/controls/ParamLabel.qml
     qml/controls/ParamSlider.qml
     qml/controls/SectionHeader.qml
     qml/controls/SegmentedControl.qml

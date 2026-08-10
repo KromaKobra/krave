@@ -12,7 +12,10 @@ RowLayout {
     id: root
 
     property string label: ""
-    property string description: ""
+    /// One-line explanation, revealed by the info icon beside the name.
+    property string info: ""
+    /// Long-form explanation, opened by clicking that icon. Optional.
+    property string details: ""
     property QtObject target: null
     property string propertyName: ""
     /// Used when no target is set.
@@ -42,28 +45,10 @@ RowLayout {
     Layout.leftMargin: root.sub ? Theme.space4 : 0
     spacing: Theme.space3
 
-    ColumnLayout {
-        Layout.fillWidth: true
-        spacing: 1
-
-        Text {
-            Layout.fillWidth: true
-            text: root.label
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
-            wrapMode: Text.WordWrap
-        }
-
-        Text {
-            Layout.fillWidth: true
-            visible: root.description !== ""
-            text: root.description
-            color: Theme.textGhost
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeKicker
-            wrapMode: Text.WordWrap
-        }
+    ParamLabel {
+        text: root.label
+        info: root.info
+        details: root.details
     }
 
     Rectangle {

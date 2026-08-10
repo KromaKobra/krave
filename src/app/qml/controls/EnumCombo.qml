@@ -10,6 +10,10 @@ ColumnLayout {
     id: root
 
     property string label: ""
+    /// One-line explanation, revealed by the info icon beside the name.
+    property string info: ""
+    /// Long-form explanation, opened by clicking that icon. Optional.
+    property string details: ""
     property QtObject target: null
     property string propertyName: ""
     /// List of { text, value } entries.
@@ -34,12 +38,11 @@ ColumnLayout {
     spacing: Theme.space2
     enabled: propertyName === "" || target !== null
 
-    Text {
+    ParamLabel {
         visible: root.label !== ""
         text: root.label
-        color: Theme.textMuted
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeSmall
+        info: root.info
+        details: root.details
     }
 
     ComboBox {

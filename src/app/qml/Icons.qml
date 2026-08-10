@@ -46,6 +46,7 @@ QtObject {
     readonly property string sliders: "M4.6 7.6 H12.6 M17.4 7.6 H19.4 M4.6 16.4 H7.4 M12.2 16.4 H19.4 M17 7.6 A2.2 2.2 0 1 1 12.6 7.6 A2.2 2.2 0 1 1 17 7.6 Z M11.8 16.4 A2.2 2.2 0 1 1 7.4 16.4 A2.2 2.2 0 1 1 11.8 16.4 Z"
     readonly property string frameCorners: "M4.4 8.6 V4.4 H8.6 M15.4 4.4 H19.6 V8.6 M19.6 15.4 V19.6 H15.4 M8.6 19.6 H4.4 V15.4"
     readonly property string warning: "M12 4.4 L21.4 20 H2.6 Z M12 10 V14.4 M12 16.8 V17.2"
+    readonly property string info: "M20.2 12 A8.2 8.2 0 1 1 3.8 12 A8.2 8.2 0 1 1 20.2 12 Z M12 11.2 V16.4 M12 7.8 V8.2"
     readonly property string spinner: "M12 3.4 A8.6 8.6 0 0 1 20.6 12"
     readonly property string link: "M10.2 13.8 A3.6 3.6 0 0 0 15.3 13.8 L18.1 11 A3.6 3.6 0 0 0 13 5.9 L11.6 7.3 M13.8 10.2 A3.6 3.6 0 0 0 8.7 10.2 L5.9 13 A3.6 3.6 0 0 0 11 18.1 L12.4 16.7"
 }

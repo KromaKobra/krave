@@ -14,6 +14,10 @@ ColumnLayout {
     id: root
 
     property string label: ""
+    /// One-line explanation, revealed by the info icon beside the name.
+    property string info: ""
+    /// Long-form explanation, opened by clicking that icon. Optional.
+    property string details: ""
     property QtObject target: null
     property string propertyName: ""
     /// The slider's range. A suggestion rather than a cap: a typed value may sit
@@ -61,13 +65,10 @@ ColumnLayout {
         Layout.fillWidth: true
         spacing: Theme.space2
 
-        Text {
-            Layout.fillWidth: true
+        ParamLabel {
             text: root.label
-            color: Theme.textMuted
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
-            elide: Text.ElideRight
+            info: root.info
+            details: root.details
         }
 
         NumberField {
