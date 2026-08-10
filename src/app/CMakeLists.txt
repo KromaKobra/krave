@@ -16,15 +16,43 @@ set(app_qml_files
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
     qml/layers/ParticleLayerView.qml
-    qml/panels/TransportBar.qml
-    qml/panels/TimelineRuler.qml
+    qml/panels/TopBar.qml
     qml/panels/LayerListPanel.qml
+    qml/panels/CanvasStage.qml
     qml/panels/PropertyPanel.qml
+    qml/panels/TimelinePanel.qml
     qml/panels/ExportDialog.qml
-    qml/controls/LabeledSlider.qml
-    qml/controls/EnumCombo.qml
+    qml/controls/AppButton.qml
+    qml/controls/AppDialog.qml
+    qml/controls/AppIcon.qml
+    qml/controls/AppScrollBar.qml
+    qml/controls/AppSlider.qml
+    qml/controls/AppTextField.qml
+    qml/controls/AppToolTip.qml
     qml/controls/ColorField.qml
+    qml/controls/EnumCombo.qml
+    qml/controls/IconButton.qml
+    qml/controls/NumberField.qml
+    qml/controls/ParamSlider.qml
+    qml/controls/SectionHeader.qml
+    qml/controls/SegmentedControl.qml
+    qml/controls/Tag.qml
+    qml/controls/ToggleRow.qml
+    qml/controls/WaveformStrip.qml
 )
+
+# Design tokens, the icon set and the layer-type table. Registered as singletons
+# so every QML file reads one instance of each rather than constructing its own.
+set(app_qml_singletons
+    qml/Theme.qml
+    qml/Icons.qml
+    qml/LayerTypes.qml
+)
+
+list(APPEND app_qml_files ${app_qml_singletons})
+
+set_source_files_properties(${app_qml_singletons}
+    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 # The QML sources live under qml/, but the module root must be that directory --
 # otherwise Main.qml would register as MusicVisualizer.qml/Main. Aliasing each
@@ -74,9 +102,10 @@ target_link_libraries(musicvisualizer PRIVATE
     Qt6::Multimedia
 )
 
-# QtQuick.Particles is a QML-only import for the particle layer; naming it here
-# ensures the plugin is deployed alongside the app.
-find_package(Qt6 6.8 QUIET COMPONENTS QuickParticles)
+# QtQuick.Particles is a QML-only import for the particle layer, and
+# QtQuick.Shapes is one for the icon set; naming them here ensures the plugins are
+# deployed alongside the app.
+find_package(Qt6 6.8 QUIET COMPONENTS QuickParticles QuickShapes)
 
 target_compile_definitions(musicvisualizer PRIVATE
     MV_VERSION="${PROJECT_VERSION}"

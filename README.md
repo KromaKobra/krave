@@ -67,12 +67,18 @@ Launch the editor, optionally opening straight onto a track:
 ./build/Debug/bin/musicvisualizer.exe --audio track.mp3
 ```
 
-- **Import audio…** loads mp3/wav/flac/aac/m4a/ogg. The waveform and a draggable playhead appear
-  along the bottom; scrubbing seeks audio and visuals together.
-- The **layer stack** (top right) adds, reorders, hides and deletes layers. Index order is the
-  z-order, drawn back to front.
-- The **property panel** binds directly to the selected layer's `Q_PROPERTY`s, so every edit shows
-  on the canvas the same frame. There is no apply step.
+- **Import audio** loads mp3/wav/flac/aac/m4a/ogg. A waveform, a time ruler and a draggable
+  playhead fill the transport dock along the bottom; scrubbing seeks audio and visuals together.
+- The **layer stack** (left) adds, reorders, renames (double-click), hides and deletes layers.
+  Index order is the z-order, drawn back to front.
+- The **property panel** (right) binds directly to the selected layer's `Q_PROPERTY`s, so every
+  edit shows on the canvas the same frame. There is no apply step. Every slider is paired with a
+  number field for exact values.
+- The **canvas** letterboxes the project's aspect ratio, and toggles between Fit and 100%.
+  Composition guides (thirds plus a title-safe box) are an editor overlay only — they are drawn
+  outside the canvas item, so they never reach an exported frame.
+- Shortcuts: `Space` play/pause, `Ctrl+N/O/S/Shift+S` document, `Ctrl+I` import, `Ctrl+E` export,
+  `Del` delete the selected layer.
 - **Save / Save as…** writes a `.mvproj` file. It stores layers, their properties and the canvas
   settings — and deliberately **no audio path**, so projects stay portable as reusable templates.
 - **Export video…** renders offscreen at the chosen resolution and pipes frames to ffmpeg.
@@ -101,7 +107,11 @@ src/app/      the Qt Quick application
   Layer/LayerModel   layer types and the ordered stack
   Project            QMetaObject-driven JSON save/load
   ExportController   offscreen QQuickRenderControl -> ffmpeg stdin
-  qml/               Main, VisualizerCanvas, layers/, panels/, controls/
+  qml/               Main, VisualizerCanvas
+    Theme/Icons/LayerTypes  singletons: design tokens, the icon paths, layer metadata
+    layers/          one view per layer type, composited by VisualizerCanvas
+    panels/          the docked regions: top bar, layer list, canvas stage, properties, transport
+    controls/        the widget kit every panel is built from
 tests/        ctest suites for the FFT/analyzer and for project round-tripping
 ```
 

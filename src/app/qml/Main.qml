@@ -2,202 +2,117 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
+
+import "controls"
 import "panels"
 
+// The editor shell: an application bar over three resizable panes, with the
+// transport docked along the bottom.
+//
+// Layout only. Every action the bar or a shortcut raises is funnelled through the
+// functions below, so the menu, the keyboard and the buttons cannot drift apart.
 ApplicationWindow {
     id: window
 
-    width: 1440
-    height: 900
-    minimumWidth: 960
-    minimumHeight: 620
+    width: 1500
+    height: 940
+    minimumWidth: 1080
+    minimumHeight: 680
     visible: true
-    color: "#0e0e14"
+    color: Theme.bg
 
     title: qsTr("Music Visualizer — %1%2")
         .arg(project.displayName)
         .arg(project.modified ? " •" : "")
 
-    component ToolbarButton: Button {
-        implicitHeight: 28
-        padding: 10
-        contentItem: Text {
-            text: parent.text
-            color: parent.enabled ? "#d8d8e4" : "#4a4a58"
-            font.pixelSize: 11
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+    // Window shortcuts are matched before the focused item sees the key, so the
+    // bare ones -- Space, Delete -- have to stand down while a field is being
+    // typed into or they eat the keystroke.
+    readonly property bool typing:
+        activeFocusItem !== null && activeFocusItem.inputMethodComposing !== undefined
+
+    // ----------------------------------------------------------------- actions
+    function saveProject() {
+        if (!project.saveCurrent())
+            saveDialog.open()
+    }
+
+    function showError(message) {
+        errorDialog.message = message
+        errorDialog.open()
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        TopBar {
+            Layout.fillWidth: true
+
+            onNewProjectRequested: project.newProject()
+            onOpenProjectRequested: openDialog.open()
+            onImportAudioRequested: audioDialog.open()
+            onSaveRequested: window.saveProject()
+            onSaveAsRequested: saveDialog.open()
+            onExportRequested: exportDialog.open()
         }
-        background: Rectangle {
-            radius: 4
-            color: parent.down ? "#2f2f3d" : (parent.hovered ? "#26263a" : "#1c1c26")
-            border.color: "#2f2f3d"
-            border.width: 1
+
+        SplitView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            orientation: Qt.Horizontal
+
+            handle: Rectangle {
+                implicitWidth: 5
+                color: SplitHandle.pressed ? Theme.accent
+                     : (SplitHandle.hovered ? Theme.withAlpha(Theme.accent, 0.4) : "transparent")
+
+                Behavior on color { ColorAnimation { duration: Theme.durFast } }
+            }
+
+            LayerListPanel {
+                SplitView.preferredWidth: Theme.leftPanelWidth
+                SplitView.minimumWidth: 200
+                SplitView.maximumWidth: 420
+            }
+
+            CanvasStage {
+                SplitView.fillWidth: true
+                SplitView.minimumWidth: 320
+            }
+
+            PropertyPanel {
+                SplitView.preferredWidth: Theme.rightPanelWidth
+                SplitView.minimumWidth: 280
+                SplitView.maximumWidth: 520
+            }
+        }
+
+        TimelinePanel {
+            Layout.fillWidth: true
         }
     }
 
-    // ------------------------------------------------------------------ layout
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 8
-        spacing: 8
-
-        // --- toolbar ---
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            spacing: 6
-
-            ToolbarButton {
-                text: qsTr("Import audio…")
-                enabled: !audioEngine.loading
-                onClicked: audioDialog.open()
-            }
-
-            Rectangle { width: 1; Layout.preferredHeight: 20; color: "#2a2a38" }
-
-            ToolbarButton {
-                text: qsTr("New")
-                onClicked: project.newProject()
-            }
-            ToolbarButton {
-                text: qsTr("Open project…")
-                onClicked: openDialog.open()
-            }
-            ToolbarButton {
-                text: qsTr("Save")
-                onClicked: {
-                    if (!project.saveCurrent())
-                        saveDialog.open()
-                }
-            }
-            ToolbarButton {
-                text: qsTr("Save as…")
-                onClicked: saveDialog.open()
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Text {
-                visible: audioEngine.loading
-                text: audioEngine.loadProgress >= 0
-                      ? qsTr("Decoding %1%").arg(Math.round(audioEngine.loadProgress * 100))
-                      : qsTr("Decoding…")
-                color: "#4cc9f0"
-                font.pixelSize: 11
-            }
-
-            Text {
-                visible: !ffmpegAvailable
-                text: qsTr("ffmpeg not found — import and export are unavailable")
-                color: "#f7a325"
-                font.pixelSize: 11
-            }
-
-            ToolbarButton {
-                text: qsTr("Export video…")
-                enabled: audioEngine.hasTrack && ffmpegAvailable
-                onClicked: exportDialog.open()
-            }
-        }
-
-        // --- canvas + side panel ---
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 8
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: "#08080c"
-                border.color: "#22222e"
-                border.width: 1
-                clip: true
-
-                // Letterbox the canvas at the project's aspect ratio so what the
-                // user sees is exactly what gets exported, just smaller.
-                Item {
-                    id: canvasHolder
-
-                    readonly property real aspect: project.canvasHeight > 0
-                        ? project.canvasWidth / project.canvasHeight : 16 / 9
-                    readonly property real availW: parent.width - 24
-                    readonly property real availH: parent.height - 24
-
-                    width: Math.min(availW, availH * aspect)
-                    height: width / aspect
-                    anchors.centerIn: parent
-
-                    VisualizerCanvas {
-                        anchors.fill: parent
-                        layers: layerModel
-                        canvasColor: project.canvasColor
-                    }
-
-                    // The canvas is often near-black against a near-black box;
-                    // this outline makes the exported frame's bounds obvious.
-                    Rectangle {
-                        anchors.fill: parent
-                        color: "transparent"
-                        border.color: "#2c2c40"
-                        border.width: 1
-                    }
-                }
-
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 4
-                    text: project.canvasWidth + " × " + project.canvasHeight
-                    color: "#33334a"
-                    font.pixelSize: 10
-                }
-            }
-
-            // Side panel.
-            //
-            // fillWidth/fillHeight must be set explicitly here: they default to
-            // TRUE for layout items (unlike plain Items), so without this the
-            // panel competes with the canvas for horizontal space and wins.
-            ColumnLayout {
-                Layout.fillWidth: false
-                Layout.fillHeight: true
-                Layout.preferredWidth: 320
-                Layout.minimumWidth: 280
-                spacing: 8
-
-                LayerListPanel {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: false
-                    Layout.preferredHeight: 240
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    color: "#12121a"
-                    border.color: "#22222e"
-                    border.width: 1
-                    radius: 3
-
-                    PropertyPanel {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                    }
-                }
-            }
-        }
-
-        // --- transport + timeline ---
-        TransportBar {
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-        }
-
-        TimelineRuler {
-            Layout.fillWidth: true
-        }
+    // --------------------------------------------------------------- shortcuts
+    Shortcut {
+        sequence: "Space"
+        enabled: audioEngine.hasTrack && !window.typing
+        onActivated: audioEngine.togglePlay()
+    }
+    Shortcut { sequence: StandardKey.New;  onActivated: project.newProject() }
+    Shortcut { sequence: StandardKey.Open; onActivated: openDialog.open() }
+    Shortcut { sequence: StandardKey.Save; onActivated: window.saveProject() }
+    Shortcut { sequence: StandardKey.SaveAs; onActivated: saveDialog.open() }
+    Shortcut { sequence: "Ctrl+I"; onActivated: audioDialog.open() }
+    Shortcut {
+        sequence: "Ctrl+E"
+        enabled: audioEngine.hasTrack && ffmpegAvailable
+        onActivated: exportDialog.open()
+    }
+    Shortcut {
+        sequence: StandardKey.Delete
+        enabled: layerModel.selectedIndex >= 0 && !window.typing
+        onActivated: layerModel.removeLayer(layerModel.selectedIndex)
     }
 
     // ----------------------------------------------------------------- dialogs
@@ -232,35 +147,32 @@ ApplicationWindow {
     }
 
     // ------------------------------------------------------------------ errors
-    Dialog {
+    AppDialog {
         id: errorDialog
 
         property string message: ""
 
-        anchors.centerIn: parent
-        modal: true
         title: qsTr("Something went wrong")
-        standardButtons: Dialog.Ok
-        width: Math.min(560, window.width - 80)
+        width: Math.min(520, window.width - 120)
 
         contentItem: Text {
             text: errorDialog.message
-            color: "#e0e0ea"
-            font.pixelSize: 12
+            color: Theme.textMuted
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeBody
             wrapMode: Text.WordWrap
         }
 
-        background: Rectangle {
-            color: "#16161f"
-            border.color: "#33334a"
-            border.width: 1
-            radius: 4
-        }
-    }
+        footer: RowLayout {
+            Item { Layout.fillWidth: true; Layout.preferredHeight: 56 }
 
-    function showError(message) {
-        errorDialog.message = message
-        errorDialog.open()
+            AppButton {
+                Layout.rightMargin: Theme.space6
+                text: qsTr("Close")
+                variant: "primary"
+                onClicked: errorDialog.close()
+            }
+        }
     }
 
     Connections {

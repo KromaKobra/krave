@@ -3,7 +3,13 @@ import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
-// Colour swatch that opens a colour dialog, bound to a QColor property.
+import MusicVisualizer
+
+// A colour bound to a QColor property.
+//
+// The swatch opens the system picker; the hex beside it is editable, because
+// matching a colour to a brand or an album cover is usually a paste, not a hunt
+// through a colour wheel.
 ColumnLayout {
     id: root
 
@@ -18,46 +24,111 @@ ColumnLayout {
         return v === undefined ? "#000000" : v
     }
 
-    spacing: 2
+    function apply(c) {
+        if (target && propertyName)
+            target[propertyName] = c
+    }
+
+    Layout.fillWidth: true
+    spacing: Theme.space2
     enabled: target !== null
 
     Text {
+        visible: root.label !== ""
         text: root.label
-        color: "#c8c8d4"
-        font.pixelSize: 11
+        color: Theme.textMuted
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeSmall
     }
 
     Rectangle {
         Layout.fillWidth: true
-        implicitHeight: 26
-        radius: 3
-        color: root.value
-        border.color: "#2f2f3d"
+        implicitHeight: Theme.controlHeight
+        radius: Theme.radiusMd
+        color: Theme.sunken
         border.width: 1
+        border.color: hex.activeFocus ? Theme.accent
+                                      : (swatchHover.hovered ? Theme.dividerStrong : Theme.divider)
 
-        Text {
-            anchors.centerIn: parent
-            text: root.value.toString()
-            font.pixelSize: 10
-            font.family: "Consolas"
-            // Flip the caption against the swatch so it stays legible either way.
-            color: (root.value.r * 0.299 + root.value.g * 0.587 + root.value.b * 0.114) > 0.55
-                   ? "#000000" : "#ffffff"
-        }
-
-        MouseArea {
+        RowLayout {
             anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: dialog.open()
+            anchors.leftMargin: Theme.space2
+            anchors.rightMargin: Theme.space2
+            spacing: Theme.space2
+
+            Rectangle {
+                Layout.preferredWidth: 18
+                Layout.preferredHeight: 18
+                radius: 5
+                color: root.value
+                border.width: 1
+                border.color: Theme.withAlpha(Theme.text, 0.18)
+
+                HoverHandler {
+                    id: swatchHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+                TapHandler { onTapped: dialog.open() }
+            }
+
+            TextField {
+                id: hex
+
+                Layout.fillWidth: true
+                implicitHeight: parent.height
+                padding: 0
+                background: null
+                color: Theme.text
+                font.family: Theme.monoFamily
+                font.pixelSize: Theme.fontSizeSmall
+                verticalAlignment: TextInput.AlignVCenter
+                selectByMouse: true
+                selectionColor: Theme.accentSoftFill
+                selectedTextColor: Theme.text
+
+                // Reformat from the model except while it is being typed into, so
+                // a picker drag and a keystroke never fight over the same text.
+                function reformat() {
+                    text = root.value.toString().toUpperCase()
+                }
+
+                Component.onCompleted: reformat()
+                onActiveFocusChanged: if (!activeFocus) reformat()
+                onEditingFinished: {
+                    const parsed = /^#?[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(text.trim())
+                    if (parsed)
+                        root.apply(text.trim().charAt(0) === "#" ? text.trim() : "#" + text.trim())
+                    reformat()
+                }
+
+                Connections {
+                    target: root
+                    function onValueChanged() {
+                        if (!hex.activeFocus)
+                            hex.reformat()
+                    }
+                }
+
+                cursorDelegate: Rectangle {
+                    width: 1
+                    color: Theme.accent
+                    visible: hex.activeFocus
+                }
+            }
+
+            IconButton {
+                iconPath: Icons.sliders
+                iconSize: 13
+                diameter: 22
+                tip: qsTr("Pick a colour…")
+                onClicked: dialog.open()
+            }
         }
     }
 
     ColorDialog {
         id: dialog
         selectedColor: root.value
-        onAccepted: {
-            if (root.target && root.propertyName)
-                root.target[root.propertyName] = selectedColor
-        }
+        onAccepted: root.apply(selectedColor)
     }
 }

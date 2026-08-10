@@ -3,25 +3,30 @@ import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
 
-Dialog {
+import MusicVisualizer
+import "../controls"
+
+AppDialog {
     id: root
 
-    anchors.centerIn: Overlay.overlay
-    modal: true
+    title: qsTr("Export video")
+    width: 460
     closePolicy: exportController.exporting
                  ? Popup.NoAutoClose
                  : (Popup.CloseOnEscape | Popup.CloseOnPressOutside)
-    title: qsTr("Export video")
-    width: 480
 
     readonly property var resolutionPresets: [
-        { text: "1280 × 720",   w: 1280, h: 720 },
-        { text: "1920 × 1080",  w: 1920, h: 1080 },
-        { text: "2560 × 1440",  w: 2560, h: 1440 },
-        { text: "3840 × 2160",  w: 3840, h: 2160 },
-        { text: "1080 × 1080 (square)", w: 1080, h: 1080 },
-        { text: "1080 × 1920 (vertical)", w: 1080, h: 1920 }
+        { text: "1280 × 720",             value: "1280x720" },
+        { text: "1920 × 1080",            value: "1920x1080" },
+        { text: "2560 × 1440",            value: "2560x1440" },
+        { text: "3840 × 2160",            value: "3840x2160" },
+        { text: qsTr("1080 × 1080 — square"),   value: "1080x1080" },
+        { text: qsTr("1080 × 1920 — vertical"), value: "1080x1920" }
     ]
+
+    /// The preset matching the current size, so hand-typed dimensions leave the
+    /// dropdown showing nothing rather than lying about which preset is active.
+    readonly property string currentPreset: exportController.width + "x" + exportController.height
 
     function formatEta(seconds) {
         if (!(seconds >= 0))
@@ -32,197 +37,133 @@ Dialog {
         return qsTr("%1m %2s remaining").arg(Math.floor(total / 60)).arg(total % 60)
     }
 
-    background: Rectangle {
-        color: "#16161f"
-        border.color: "#33334a"
-        border.width: 1
-        radius: 4
-    }
-
-    header: Text {
-        text: root.title
-        color: "#e0e0ea"
-        font.pixelSize: 13
-        font.bold: true
-        padding: 14
-    }
-
-    component FieldLabel: Text {
-        color: "#8a8a9a"
-        font.pixelSize: 11
-    }
-
-    component Field: Rectangle {
-        implicitHeight: 26
-        color: "#1c1c26"
-        border.color: "#2f2f3d"
-        border.width: 1
-        radius: 3
-    }
-
     contentItem: ColumnLayout {
-        spacing: 12
+        spacing: Theme.space4
 
-        GridLayout {
+        ColumnLayout {
             Layout.fillWidth: true
-            columns: 2
-            columnSpacing: 12
-            rowSpacing: 8
+            spacing: Theme.space4
             enabled: !exportController.exporting
 
-            FieldLabel { text: qsTr("Preset") }
-            ComboBox {
-                id: presetCombo
-                Layout.fillWidth: true
-                implicitHeight: 28
-                model: root.resolutionPresets
-                textRole: "text"
-                currentIndex: 1
-                onActivated: (i) => {
-                    exportController.width = root.resolutionPresets[i].w
-                    exportController.height = root.resolutionPresets[i].h
-                }
-                contentItem: Text {
-                    leftPadding: 8
-                    text: presetCombo.displayText
-                    color: "#e0e0ea"
-                    font.pixelSize: 11
-                    verticalAlignment: Text.AlignVCenter
-                }
-                background: Field {}
-            }
-
-            FieldLabel { text: qsTr("Resolution") }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                SpinBox {
-                    Layout.fillWidth: true
-                    from: 16; to: 7680; stepSize: 2
-                    value: exportController.width
-                    editable: true
-                    onValueModified: exportController.width = value
-                    implicitHeight: 28
-                }
-                FieldLabel { text: "×" }
-                SpinBox {
-                    Layout.fillWidth: true
-                    from: 16; to: 4320; stepSize: 2
-                    value: exportController.height
-                    editable: true
-                    onValueModified: exportController.height = value
-                    implicitHeight: 28
+            EnumCombo {
+                label: qsTr("Preset")
+                options: root.resolutionPresets
+                localValue: root.currentPreset
+                onActivated: (value) => {
+                    const parts = String(value).split("x")
+                    exportController.width = parseInt(parts[0])
+                    exportController.height = parseInt(parts[1])
                 }
             }
 
-            FieldLabel { text: qsTr("Frame rate") }
-            RowLayout {
+            ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 6
+                spacing: Theme.space2
 
-                Repeater {
-                    model: [24, 30, 60]
-                    Button {
-                        required property int modelData
-                        text: modelData + " fps"
-                        implicitHeight: 26
-                        onClicked: exportController.fps = modelData
-                        contentItem: Text {
-                            text: parent.text
-                            color: exportController.fps === parent.modelData
-                                   ? "#0b0b12" : "#c8c8d4"
-                            font.pixelSize: 11
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            radius: 3
-                            color: exportController.fps === parent.modelData
-                                   ? "#4cc9f0" : "#1c1c26"
-                            border.color: "#2f2f3d"
-                            border.width: 1
-                        }
+                Text {
+                    text: qsTr("Resolution")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space3
+
+                    NumberField {
+                        Layout.fillWidth: true
+                        value: exportController.width
+                        decimals: 0
+                        from: 16; to: 7680
+                        unit: "px"
+                        onEdited: (v) => exportController.width = Math.round(v)
+                    }
+
+                    Text {
+                        text: "×"
+                        color: Theme.textGhost
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeBody
+                    }
+
+                    NumberField {
+                        Layout.fillWidth: true
+                        value: exportController.height
+                        decimals: 0
+                        from: 16; to: 4320
+                        unit: "px"
+                        onEdited: (v) => exportController.height = Math.round(v)
                     }
                 }
+            }
 
-                SpinBox {
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: Theme.space2
+
+                Text {
+                    text: qsTr("Frame rate")
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+
+                RowLayout {
                     Layout.fillWidth: true
-                    from: 1; to: 240
-                    value: exportController.fps
-                    editable: true
-                    onValueModified: exportController.fps = value
-                    implicitHeight: 26
+                    spacing: Theme.space3
+
+                    SegmentedControl {
+                        Layout.fillWidth: true
+                        localValue: exportController.fps
+                        options: [
+                            { text: "24", value: 24 },
+                            { text: "30", value: 30 },
+                            { text: "60", value: 60 }
+                        ]
+                        onActivated: (value) => exportController.fps = value
+                    }
+
+                    NumberField {
+                        value: exportController.fps
+                        decimals: 0
+                        from: 1; to: 240
+                        unit: "fps"
+                        onEdited: (v) => exportController.fps = Math.round(v)
+                    }
                 }
             }
 
-            FieldLabel { text: qsTr("Format") }
-            ComboBox {
-                id: codecCombo
-                Layout.fillWidth: true
-                implicitHeight: 28
-                model: [
+            EnumCombo {
+                label: qsTr("Format")
+                target: exportController
+                propertyName: "videoCodec"
+                options: [
                     { text: qsTr("MP4 — H.264 (widely compatible)"), value: "h264" },
                     { text: qsTr("MOV — ProRes 422 HQ (editing)"), value: "prores" }
                 ]
-                textRole: "text"
-                valueRole: "value"
-                currentIndex: exportController.videoCodec === "prores" ? 1 : 0
-                onActivated: (i) => exportController.videoCodec = model[i].value
-                contentItem: Text {
-                    leftPadding: 8
-                    rightPadding: 24
-                    text: codecCombo.displayText
-                    color: "#e0e0ea"
-                    font.pixelSize: 11
-                    verticalAlignment: Text.AlignVCenter
-                    elide: Text.ElideRight
-                }
-                background: Field {}
             }
 
-            FieldLabel {
-                text: qsTr("Quality")
+            ParamSlider {
                 visible: exportController.videoCodec === "h264"
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                visible: exportController.videoCodec === "h264"
-                spacing: 8
-
-                Slider {
-                    Layout.fillWidth: true
-                    from: 12; to: 30; stepSize: 1
-                    value: exportController.quality
-                    onMoved: exportController.quality = value
-                }
-                Text {
-                    text: qsTr("CRF %1").arg(exportController.quality)
-                    color: "#8a8a9a"
-                    font.pixelSize: 11
-                    font.family: "Consolas"
-                }
+                label: qsTr("Quality (lower CRF is better)")
+                target: exportController
+                propertyName: "quality"
+                from: 12; to: 30; stepSize: 1; decimals: 0
             }
 
-            FieldLabel { text: qsTr("Audio") }
-            CheckBox {
-                Layout.fillWidth: true
-                checked: exportController.includeAudio
-                onToggled: exportController.includeAudio = checked
-                contentItem: Text {
-                    leftPadding: 22
-                    text: qsTr("Embed the original audio track")
-                    color: "#c8c8d4"
-                    font.pixelSize: 11
-                    verticalAlignment: Text.AlignVCenter
-                }
+            ToggleRow {
+                label: qsTr("Embed the original audio track")
+                target: exportController
+                propertyName: "includeAudio"
             }
         }
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
-            color: "#2a2a38"
+            Layout.topMargin: Theme.space1
+            implicitHeight: 1
+            color: Theme.divider
         }
 
         // ------------------------------------------------------------ summary
@@ -230,16 +171,17 @@ Dialog {
             Layout.fillWidth: true
             visible: !exportController.exporting
             wrapMode: Text.WordWrap
-            color: "#6a6a80"
-            font.pixelSize: 11
+            color: Theme.textFaint
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
             text: {
                 if (!audioEngine.hasTrack)
                     return qsTr("Import an audio track first.")
                 const frames = Math.ceil(audioEngine.duration * exportController.fps)
-                return qsTr("%1 frames at %2 fps — %3 of audio")
+                return qsTr("%1 frames at %2 fps — %3s of audio")
                     .arg(frames)
                     .arg(exportController.fps)
-                    .arg(audioEngine.duration.toFixed(1) + "s")
+                    .arg(audioEngine.duration.toFixed(1))
             }
         }
 
@@ -247,19 +189,21 @@ Dialog {
         ColumnLayout {
             Layout.fillWidth: true
             visible: exportController.exporting
-            spacing: 6
+            spacing: Theme.space2
 
             Rectangle {
                 Layout.fillWidth: true
-                height: 6
-                radius: 3
-                color: "#1c1c26"
+                implicitHeight: 5
+                radius: 2.5
+                color: Theme.neutral800
 
                 Rectangle {
                     width: parent.width * exportController.progress
                     height: parent.height
-                    radius: 3
-                    color: "#4cc9f0"
+                    radius: parent.radius
+                    color: Theme.accent
+
+                    Behavior on width { NumberAnimation { duration: Theme.durNormal } }
                 }
             }
 
@@ -270,14 +214,18 @@ Dialog {
                     text: qsTr("Frame %1 of %2")
                         .arg(exportController.framesDone)
                         .arg(exportController.totalFrames)
-                    color: "#c8c8d4"
-                    font.pixelSize: 11
+                    color: Theme.textMuted
+                    font.family: Theme.monoFamily
+                    font.pixelSize: Theme.fontSizeSmall
                 }
+
                 Item { Layout.fillWidth: true }
+
                 Text {
                     text: root.formatEta(exportController.etaSeconds)
-                    color: "#6a6a80"
-                    font.pixelSize: 11
+                    color: Theme.textFaint
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
                 }
             }
         }
@@ -286,77 +234,39 @@ Dialog {
             Layout.fillWidth: true
             visible: text.length > 0
             text: exportController.statusText
-            color: exportController.lastError.length > 0 ? "#f7768e" : "#4cc9f0"
-            font.pixelSize: 11
+            color: exportController.lastError.length > 0 ? Theme.danger : Theme.accent300
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
             wrapMode: Text.WordWrap
         }
     }
 
     footer: RowLayout {
-        spacing: 8
+        spacing: Theme.space2
 
-        Item { Layout.fillWidth: true; Layout.preferredHeight: 44 }
+        Item { Layout.fillWidth: true; Layout.preferredHeight: 56 }
 
-        Button {
+        AppButton {
             visible: exportController.exporting
             text: qsTr("Cancel export")
             onClicked: exportController.cancel()
-            contentItem: Text {
-                text: parent.text
-                color: "#f7768e"
-                font.pixelSize: 11
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                radius: 4
-                color: parent.down ? "#2f2f3d" : "#1c1c26"
-                border.color: "#4a2f3d"
-                border.width: 1
-            }
-            Layout.preferredHeight: 30
-            Layout.rightMargin: 4
         }
 
-        Button {
+        AppButton {
             visible: !exportController.exporting
             text: qsTr("Close")
+            variant: "ghost"
             onClicked: root.close()
-            contentItem: Text {
-                text: parent.text
-                color: "#c8c8d4"
-                font.pixelSize: 11
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                radius: 4
-                color: parent.down ? "#2f2f3d" : "#1c1c26"
-                border.color: "#2f2f3d"
-                border.width: 1
-            }
-            Layout.preferredHeight: 30
         }
 
-        Button {
+        AppButton {
+            Layout.rightMargin: Theme.space6
             visible: !exportController.exporting
             text: qsTr("Export…")
+            iconPath: Icons.exportArrow
+            variant: "primary"
             enabled: audioEngine.hasTrack && ffmpegAvailable
             onClicked: saveDialog.open()
-            contentItem: Text {
-                text: parent.text
-                color: parent.enabled ? "#0b0b12" : "#4a4a58"
-                font.pixelSize: 11
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                radius: 4
-                color: parent.enabled ? (parent.down ? "#3aa8cc" : "#4cc9f0") : "#1c1c26"
-            }
-            Layout.preferredHeight: 30
-            Layout.rightMargin: 14
         }
     }
 
