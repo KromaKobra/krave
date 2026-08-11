@@ -116,3 +116,9 @@ set_target_properties(krave PROPERTIES
     WIN32_EXECUTABLE FALSE   # keep a console attached for diagnostics
     MACOSX_BUNDLE FALSE
 )
+
+include(GNUInstallDirs)
+install(TARGETS krave
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    BUNDLE  DESTINATION .
+)

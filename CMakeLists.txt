@@ -16,6 +16,10 @@ option(MV_BUILD_TESTS "Build unit tests for the mvcore library" ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
     Gui
+    # QRhi lives behind the private Gui headers; the export path needs it.
+    # Implicit in the Qt online-installer builds, but must be requested
+    # explicitly for distro/Nix Qt packages.
+    GuiPrivate
     Qml
     Quick
     QuickControls2

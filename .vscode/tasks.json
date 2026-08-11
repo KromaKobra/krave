@@ -1,26 +1,31 @@
 {
     // Build tasks, referenced as preLaunchTask from launch.json.
     //
-    // These shell out to scripts/build.ps1 rather than calling cmake directly:
-    // cmake and ninja live inside the VS Build Tools and are not on PATH, and
-    // Ninja needs the MSVC environment. The script handles both.
+    // Each task delegates to the platform's build script rather than calling
+    // cmake directly, because on neither host is the toolchain simply on PATH:
+    //   Windows - cmake and ninja live inside the VS Build Tools, and Ninja
+    //             needs the MSVC environment (scripts/build.ps1 handles both).
+    //   Linux   - the toolchain comes from the flake, so the script re-execs
+    //             itself inside `nix develop` when cmake is missing.
+    //
+    // "type": "shell" with per-platform command strings is what keeps one task
+    // list working on both; VS Code picks the branch matching the host.
     "version": "2.0.0",
     "tasks": [
         {
             "label": "build (debug)",
-            "type": "process",
-            "command": "pwsh",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", "${workspaceFolder}/scripts/build.ps1",
-                "-Config", "Debug"
-            ],
+            "type": "shell",
+            "linux": { "command": "./scripts/build.sh --config debug" },
+            "osx": { "command": "./scripts/build.sh --config debug" },
+            "windows": {
+                "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File '${workspaceFolder}/scripts/build.ps1' -Config Debug"
+            },
             "options": { "cwd": "${workspaceFolder}" },
             "group": { "kind": "build", "isDefault": true },
             // $msCompile turns MSVC diagnostics into clickable entries in the
-            // Problems panel.
-            "problemMatcher": "$msCompile",
+            // Problems panel; $gcc does the same for GCC/Clang. Listing both
+            // means neither host needs its own copy of the task.
+            "problemMatcher": ["$msCompile", "$gcc"],
             "presentation": {
                 "reveal": "silent",
                 "clear": true,
@@ -29,49 +34,49 @@
         },
         {
             "label": "build (release)",
-            "type": "process",
-            "command": "pwsh",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", "${workspaceFolder}/scripts/build.ps1",
-                "-Config", "RelWithDebInfo"
-            ],
+            "type": "shell",
+            "linux": { "command": "./scripts/build.sh --config release" },
+            "osx": { "command": "./scripts/build.sh --config release" },
+            "windows": {
+                "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File '${workspaceFolder}/scripts/build.ps1' -Config RelWithDebInfo"
+            },
             "options": { "cwd": "${workspaceFolder}" },
             "group": "build",
-            "problemMatcher": "$msCompile",
+            "problemMatcher": ["$msCompile", "$gcc"],
             "presentation": { "reveal": "silent", "clear": true, "panel": "shared" }
         },
         {
             "label": "build and test",
-            "type": "process",
-            "command": "pwsh",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", "${workspaceFolder}/scripts/build.ps1",
-                "-Config", "Debug",
-                "-Test"
-            ],
+            "type": "shell",
+            "linux": { "command": "./scripts/build.sh --config debug --test" },
+            "osx": { "command": "./scripts/build.sh --config debug --test" },
+            "windows": {
+                "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File '${workspaceFolder}/scripts/build.ps1' -Config Debug -Test"
+            },
             "options": { "cwd": "${workspaceFolder}" },
             "group": { "kind": "test", "isDefault": true },
-            "problemMatcher": "$msCompile",
+            "problemMatcher": ["$msCompile", "$gcc"],
             "presentation": { "reveal": "always", "clear": true, "panel": "shared" }
         },
         {
             "label": "clean rebuild (debug)",
-            "type": "process",
-            "command": "pwsh",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", "${workspaceFolder}/scripts/build.ps1",
-                "-Config", "Debug",
-                "-Clean"
-            ],
+            "type": "shell",
+            "linux": { "command": "./scripts/build.sh --config debug --clean" },
+            "osx": { "command": "./scripts/build.sh --config debug --clean" },
+            "windows": {
+                "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File '${workspaceFolder}/scripts/build.ps1' -Config Debug -Clean"
+            },
             "options": { "cwd": "${workspaceFolder}" },
             "group": "build",
-            "problemMatcher": "$msCompile",
+            "problemMatcher": ["$msCompile", "$gcc"],
+            "presentation": { "reveal": "always", "clear": true, "panel": "shared" }
+        },
+        {
+            "label": "nix build (wrapped release)",
+            "type": "shell",
+            "command": "nix build .#krave --print-build-logs",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": ["$gcc"],
             "presentation": { "reveal": "always", "clear": true, "panel": "shared" }
         }
     ]

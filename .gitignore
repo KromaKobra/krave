@@ -1,5 +1,8 @@
 build/
 out/
+result
+result-*
+.direnv/
 .qt/
 .cache/
 CMakeUserPresets.json

@@ -32,14 +32,78 @@ Two rules keep that promise honest:
 
 | | |
 |---|---|
-| Qt | 6.8+ with **Quick, QuickControls2, Multimedia, Concurrent** and private Gui headers |
-| Compiler | MSVC 2022+ (verified on Build Tools 2026, toolset 14.51) |
+| Qt | 6.8+ with **Quick, QuickControls2, Multimedia, Concurrent, ShaderTools** and private Gui headers |
+| Compiler | MSVC 2022+ (verified on Build Tools 2026, toolset 14.51) or GCC 13+ / Clang 17+ |
 | CMake | 3.21+, Ninja |
 | ffmpeg | on `PATH`, or set `MV_FFMPEG` to its full path |
 
 ffmpeg is required for both import and export — it is the decoder as well as the encoder.
 
-## Build
+## Build (Linux / Nix)
+
+The flake pins the whole toolchain — Qt, cmake, ninja, ffmpeg — so nothing needs to be installed
+globally.
+
+```bash
+nix build           # -> ./result/bin/krave, ffmpeg baked onto its PATH
+nix run             # build and launch
+```
+
+For day-to-day work there is a build script — the counterpart to `scripts/build.ps1`. It re-execs
+itself inside `nix develop` when cmake is not on `PATH`, so it works from a bare terminal:
+
+```bash
+./scripts/build.sh                  # debug build
+./scripts/build.sh --config release
+./scripts/build.sh --test           # build then run ctest
+./scripts/build.sh --run            # build then launch the app
+./scripts/build.sh --clean
+```
+
+Or drive the presets by hand from inside the shell:
+
+```bash
+nix develop
+cmake --preset linux-debug && cmake --build --preset linux-debug && ctest --preset linux-debug
+./build/linux-debug/bin/krave
+```
+
+The shell also carries `clangd` (it reads the `compile_commands.json` the preset emits), `gdb`,
+`qmllint` and `ffmpeg`. An in-tree binary must be launched **from inside the shell** — it is not
+wrapped, so it finds Qt's plugins and QML modules only through the `QT_PLUGIN_PATH` /
+`QML2_IMPORT_PATH` the shell exports. The `nix build` output is wrapped and runs anywhere.
+
+### VS Code
+
+`.vscode/tasks.json` and `launch.json` carry both hosts; the Linux debug configs are the ones
+suffixed `(Linux)`. Every build writes the dev shell's Qt environment to `build/<preset>/dev.env`,
+which those configs read as their `envFile` — that is what lets a debug session find the QML
+modules without VS Code itself being started from the shell.
+
+Debugging uses **CodeLLDB** (`vadimcn.vscode-lldb`), not the usual `cppdbg`: that type comes from
+`ms-vscode.cpptools`, which is proprietary and absent from Open VSX, so it cannot be installed on
+VSCodium at all. On NixOS take CodeLLDB from nixpkgs rather than the extensions panel — the
+marketplace build ships an unpatched prebuilt binary that will not run:
+
+```nix
+programs.vscode = {
+  enable = true;
+  package = pkgs.vscodium;
+  mutableExtensionsDir = true;   # keeps hand-installed extensions working
+  profiles.default.extensions = with pkgs.vscode-extensions; [ vadimcn.vscode-lldb ];
+};
+```
+
+To install it system-wide, add the repo as a flake input in `/etc/nixos/flake.nix` and put
+`inputs.krave.packages.${pkgs.system}.default` in `environment.systemPackages`.
+
+Building without Nix works too, given Qt 6.8+ and ffmpeg on `PATH`:
+
+```bash
+cmake --preset linux-debug && cmake --build --preset linux-debug
+```
+
+## Build (Windows)
 
 `cmake` and `ninja` ship inside the VS Build Tools and are usually not on `PATH`, and Ninja needs
 the MSVC environment. The build script handles all of that:
@@ -64,7 +128,7 @@ cmake --preset debug && cmake --build --preset debug && ctest --preset debug
 Launch the editor, optionally opening straight onto a track:
 
 ```bash
-./build/Debug/bin/krave.exe --audio track.mp3
+./build/linux-debug/bin/krave --audio track.mp3   # build/Debug/bin/krave.exe on Windows
 ```
 
 - **Import audio** loads mp3/wav/flac/aac/m4a/ogg. A waveform, a time ruler and a draggable
@@ -82,16 +146,6 @@ Launch the editor, optionally opening straight onto a track:
 - **Save / Save as…** writes a `.mvproj` file. It stores layers, their properties and the canvas
   settings — and deliberately **no audio path**, so projects stay portable as reusable templates.
 - **Export video…** renders offscreen at the chosen resolution and pipes frames to ffmpeg.
-
-### Rendering from the command line
-
-The same pipeline, no window — useful for batch renders:
-
-```bash
-./build/Debug/bin/krave.exe --render --audio track.mp3 --out out.mp4 --project look.mvproj --fps 60
-```
-
-Options: `--width`, `--height`, `--fps`, `--codec h264|prores`, `--no-audio`, `--project`.
 
 ## Layout
 

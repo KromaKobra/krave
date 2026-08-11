@@ -16,3 +16,9 @@ target_include_directories(tst_project PRIVATE ../src/app)
 target_link_libraries(tst_project PRIVATE mvcore Qt6::Gui Qt6::Qml Qt6::Test)
 set_target_properties(tst_project PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME tst_project COMMAND tst_project)
+
+# It builds a QGuiApplication only to own the QML engine types -- it opens no
+# window. Forcing the offscreen platform keeps it runnable over SSH, in CI and
+# in the Nix build sandbox, where connecting to a display server would abort.
+set_tests_properties(tst_project PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
