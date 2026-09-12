@@ -11,6 +11,7 @@
 // zoom yet; adding one means `content.scale` with transformOrigin TopLeft and a
 // division by scale in the two mapping helpers below, and nothing else.
 import QtQuick
+import QtQuick.Shapes
 
 import krave
 import "../controls"
@@ -25,6 +26,19 @@ Item {
 
     /// Grid step, and the snap the drag rounds to on release.
     readonly property int gridStep: 8
+
+    // ------------------------------------------------------- in-flight link
+    //
+    // Held here rather than on the PortDot that started it, because every other
+    // dot has to read it to decide whether it is a legal target -- which is what
+    // lets the highlighting work with no hit testing at all.
+    property bool linking: false
+    property int linkFromId: 0
+    property string linkKind: ""
+    property point linkStart: Qt.point(0, 0)
+    property point linkEnd: Qt.point(0, 0)
+    /// The port the rubber band is currently snapped to, or null.
+    property var linkTarget: null
 
     clip: true
 
@@ -62,6 +76,47 @@ Item {
                 return true
         }
         return false
+    }
+
+    // --------------------------------------------------------------- wiring
+
+    function beginLink(fromId, kind, at) {
+        viewport.linkFromId = fromId
+        viewport.linkKind = kind
+        viewport.linkStart = GraphLayout.outputPos(nodeGraph.nodeById(fromId))
+        viewport.linkEnd = at
+        viewport.linkTarget = null
+        viewport.linking = true
+    }
+
+    function dragLink(at) {
+        const hit = GraphLayout.hitTestInput(nodeGraph, at.x, at.y, viewport.linkKind,
+                                             viewport.linkFromId)
+        viewport.linkTarget = hit
+        // Snap the band to the target's centre and go solid, so the drop is
+        // confirmed before the button comes up rather than after.
+        viewport.linkEnd = hit ? hit.pos : at
+    }
+
+    function finishLink() {
+        const hit = viewport.linkTarget
+        // canLink ran in QML for the preview and runs again here in C++, which is
+        // the authoritative check -- it is what catches cycles, and the QML side
+        // has no business reasoning about those.
+        if (hit && nodeGraph.canLink(viewport.linkFromId, hit.nodeId, hit.port))
+            nodeGraph.link(viewport.linkFromId, hit.nodeId, hit.port)
+        viewport.cancelLink()
+    }
+
+    function cancelLink() {
+        viewport.linking = false
+        viewport.linkTarget = null
+        viewport.linkFromId = 0
+        viewport.linkKind = ""
+    }
+
+    function unlink(nodeId, port) {
+        nodeGraph.unlink(nodeId, port)
     }
 
     /// Bring the graph back into view: put its top-left corner near the top-left of
@@ -179,6 +234,41 @@ Item {
             delegate: EdgeLink {
                 required property var modelData
                 edge: modelData
+            }
+        }
+
+        // The rubber band sits above the edges and below the cards, so it passes
+        // behind the node it is about to land on rather than across its name.
+        Shape {
+            id: rubberBand
+
+            visible: viewport.linking
+            preferredRendererType: Shape.CurveRenderer
+
+            readonly property real bow:
+                GraphLayout.curveBow(viewport.linkStart, viewport.linkEnd)
+
+            ShapePath {
+                strokeColor: Theme.portColor(viewport.linkKind)
+                strokeWidth: 2
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                // Dashed while it is going nowhere, solid the moment it snaps to a
+                // port: free confirmation that the drop will land.
+                strokeStyle: viewport.linkTarget ? ShapePath.SolidLine : ShapePath.DashLine
+                dashPattern: [4, 4]
+
+                startX: viewport.linkStart.x
+                startY: viewport.linkStart.y
+
+                PathCubic {
+                    x: viewport.linkEnd.x
+                    y: viewport.linkEnd.y
+                    control1X: viewport.linkStart.x
+                    control1Y: viewport.linkStart.y + rubberBand.bow
+                    control2X: viewport.linkEnd.x
+                    control2Y: viewport.linkEnd.y - rubberBand.bow
+                }
             }
         }
 

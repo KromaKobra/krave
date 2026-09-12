@@ -171,8 +171,11 @@ Rectangle {
         id: dragArea
 
         anchors.fill: parent
-        anchors.topMargin: Theme.portRadius      // leave the port dots their own
-        anchors.bottomMargin: Theme.portRadius   // hit areas
+        // Port dots straddle the top and bottom edges by half their 20 px hit area,
+        // and this MouseArea is stacked above them. Inset by that half or the drag
+        // handler eats the bottom of every port.
+        anchors.topMargin: Theme.portRadius * 2
+        anchors.bottomMargin: Theme.portRadius * 2
         acceptedButtons: Qt.LeftButton
         cursorShape: Qt.SizeAllCursor
 

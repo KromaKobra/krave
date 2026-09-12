@@ -1,8 +1,8 @@
 # Music Visualizer
 
-A desktop music visualizer in the spirit of Avee Player: import a track, build a layered
-frequency-reactive visualizer, preview it live against the audio, save the configuration as a
-reusable project, and export a video with the visualizer burned in.
+A desktop music visualizer in the spirit of Avee Player: import a track, wire up a
+frequency-reactive visualizer as a **node graph**, preview it live against the audio, save the
+configuration as a reusable project, and export a video with the visualizer burned in.
 
 C++17 core, Qt Quick / QML front end, ffmpeg for decode and encode.
 
@@ -14,7 +14,7 @@ stream. Everything else follows from that:
 
 - Preview asks for the spectrum at the playback cursor, 60 times a second.
 - Export asks for the spectrum at `frameIndex / fps`, as fast as the GPU allows.
-- Both render **the same `VisualizerCanvas.qml`** bound to **the same `Layer` objects**, so the
+- Both render **the same `VisualizerCanvas.qml`** bound to **the same `Node` objects**, so the
   exported video cannot drift from what you previewed.
 
 Two rules keep that promise honest:
@@ -23,10 +23,10 @@ Two rules keep that promise honest:
   `1 - exp(-dt / tau)`. A per-frame factor would make a 30 fps export decay at half the rate of a
   60 Hz preview. `tst_fft` asserts this directly — decaying for 0.5 s at 30 fps and at 60 fps must
   land within 0.02 of each other.
-- Export installs a **fixed-step `QAnimationDriver`**, so every QML animation (particle systems
-  included) advances exactly 1/fps per rendered frame. Rendering runs several times faster than
-  real time, so on the wall clock a particle system would burn through twelve seconds of motion in
-  the two seconds the render actually took.
+- Export installs a **fixed-step `QAnimationDriver`**, so every QML animation advances exactly
+  1/fps per rendered frame. Rendering runs several times faster than real time, so on the wall
+  clock an animation would burn through twelve seconds of motion in the two seconds the render
+  actually took.
 
 ## Requirements
 
@@ -133,18 +133,21 @@ Launch the editor, optionally opening straight onto a track:
 
 - **Import audio** loads mp3/wav/flac/aac/m4a/ogg. A waveform, a time ruler and a draggable
   playhead fill the transport dock along the bottom; scrubbing seeks audio and visuals together.
-- The **layer stack** (left) adds, reorders, renames (double-click), hides and deletes layers.
-  Index order is the z-order, drawn back to front.
-- The **property panel** (right) binds directly to the selected layer's `Q_PROPERTY`s, so every
+- The **node graph** (left) is where the scene is built. Nodes are rectangles with typed ports;
+  drag from an output to an input to connect them. Middle-drag pans, including over nodes.
+  Double-click a node to rename it, `Del` to delete it.
+- The **property panel** (right) binds directly to the selected node's `Q_PROPERTY`s, so every
   edit shows on the canvas the same frame. There is no apply step. Every slider is paired with a
   number field for exact values.
 - The **canvas** letterboxes the project's aspect ratio, and toggles between Fit and 100%.
   Composition guides (thirds plus a title-safe box) are an editor overlay only — they are drawn
   outside the canvas item, so they never reach an exported frame.
 - Shortcuts: `Space` play/pause, `Ctrl+N/O/S/Shift+S` document, `Ctrl+I` import, `Ctrl+E` export,
-  `Del` delete the selected layer.
-- **Save / Save as…** writes a `.mvproj` file. It stores layers, their properties and the canvas
-  settings — and deliberately **no audio path**, so projects stay portable as reusable templates.
+  `Del` delete the selected node.
+- **Save / Save as…** writes a `.mvproj` file (format version 3). It stores the nodes, their
+  properties, their graph positions and the connections between them, plus the canvas settings —
+  and deliberately **no audio path**, so projects stay portable as reusable templates. Older files
+  are rejected; `tools/migrate_v2_to_v3.py` converts them.
 - **Export video…** renders offscreen at the chosen resolution and pipes frames to ffmpeg.
 
 ## Layout
@@ -157,32 +160,66 @@ src/core/     mvcore — Qt Core only, no GUI. Decode, FFT, analysis, tool disco
   SpectrumAnalyzer   Hann window -> log bands -> dB -> time-constant smoothing
 src/app/      the Qt Quick application
   AudioEngine        QAudioSink playback, transport, playhead
-  SpectrumEngine     worker-thread analysis; writes bands into the Layer objects
-  Layer/LayerModel   layer types and the ordered stack
+  SpectrumEngine     worker-thread analysis; writes bands into the Node objects
+  Node               the node types: Visual, AudioSource, Spectrum, Separator, ...
+  NodePorts          the port table: what each type has, and what each input accepts
+  NodeGraph          the document: nodes, edges, validation, the deletion cascade
+  RenderList         the flatten: Output's visual chain, as an ordered draw list
   Project            QMetaObject-driven JSON save/load
   ExportController   offscreen QQuickRenderControl -> ffmpeg stdin
   qml/               Main, VisualizerCanvas
-    Theme/Icons/LayerTypes  singletons: design tokens, the icon paths, layer metadata
-    layers/          one view per layer type, composited by VisualizerCanvas
-    panels/          the docked regions: top bar, layer list, canvas stage, properties, transport
+    Theme/Icons/NodeTypes/GraphLayout  singletons: design tokens, icon paths, node
+                     presentation, and all of the editor's geometry maths
+    graph/           the node editor: canvas, cards, ports, edges
+    layers/          one view per visual node type, composited by VisualizerCanvas
+    panels/          the docked regions: top bar, graph, canvas stage, properties, transport
     controls/        the widget kit every panel is built from
-tests/        ctest suites for the FFT/analyzer and for project round-tripping
+tests/        ctest suites for the FFT/analyzer, the graph topology, and project round-tripping
 ```
 
 `mvcore` links only `Qt6::Core`, which keeps the unit tests fast and headless and lets the export
 path reuse the analysis code without pulling in the scene graph.
 
-## The Audio provider layer
+## The graph
+
+The scene is a directed graph, not a stack. Nodes have typed ports; an edge's colour
+**is** its type — purple carries a rendered image, orange carries audio.
+
+**Layering is a consequence of topology.** Every visual node has at most one visual
+input, so the subgraph reaching the **Output** node is a chain, and walking that
+input backwards produces the draw order: upstream is behind, downstream is in front.
+`RenderList` does exactly that walk, which is why `VisualizerCanvas.qml` still
+consumes an ordered list and is almost unchanged from when there was a stack.
+
+**An audio edge selects a source; it does not carry numbers.** A **Separator** needs
+PCM to run an FFT over, not its input's band values, so its audio input names *which*
+audio to analyse and `audioRoot()` walks that chain back to the **Audio** node
+holding the samples. Two consequences worth knowing:
+
+- Chained separators do **not** cascade. Two in series are two independent analyses
+  of the same PCM with their own band counts and smoothing. It is allowed — refusing
+  it would be a special case in an otherwise uniform type system — but it is not a
+  two-stage filter.
+- The Audio node is itself just an analyser, with one band over the full range. So
+  "one bar = overall volume" falls out of the type system rather than needing a node
+  of its own.
+
+Cycles are the one genuinely new failure mode: nothing in a stack could be cyclic.
+`NodeGraph::canLink` rejects them by walking every input port, audio included, and
+the flatten carries its own path-set guard anyway because a hand-edited file never
+goes through `canLink`.
+
+## The Separator node
 
 "What the spectrum really is" and "what looks good" are different problems. A
 faithful FFT readout jitters every frame, slopes steeply off toward the treble, and
 never sits still — every bar hovers at a similar mid height and the whole row reads
 as busy noise rather than as music.
 
-So all audio conditioning lives on its own **Audio provider** layer, and bar layers
-just draw what it hands them. Bar layers carry only appearance. One provider can
-feed any number of bar layers, and the FFT runs once per provider rather than once
-per thing drawing it.
+So all audio conditioning lives on its own **Separator** node, and spectrum nodes
+just draw what it hands them. Spectrum nodes carry only appearance. One separator can
+feed any number of spectrum nodes, and the FFT runs once per separator rather than
+once per thing drawing it.
 
 | Control | What it fixes |
 |---|---|
@@ -204,31 +241,33 @@ per thing drawing it.
 | Neighbour smoothing | Turns a comb of unrelated spikes into one moving contour |
 | Resting level | Keeps idle bars visible |
 
-## Layer types
+## Node types
 
-| Type | Reacts to audio | Notable properties |
-|---|---|---|
-| `audio` | provides the data | see above. Draws nothing |
-| `bars` | fed by a provider | width, corner radius, min/max height, linear / radial, **mirror bars** (each bar grows both ways from its base), **arc** (linear only: bows the base line into a dome or a bowl, optionally tapering the bars to fill the fan), **mirror spectrum** (reflects the frequency axis, with bass at the edges or in the centre), solid / gradient / spectrum colour, reactive brightness |
-| `particles` | yes, own analyzer | driving band (bass/mid/treble), idle and reactive emission rates, colour, size, lifetime, speed, direction, spread, gravity |
-| `text` | no | text, font, size (relative to canvas height), colour, alignment |
-| `background` | no | colour, image, fill mode |
+| Type | In | Out | Notable properties |
+|---|---|---|---|
+| `output` | visual | — | none. The root of the render; exactly one exists and it cannot be deleted |
+| `audio` | — | audio | none. The track, as one band over the full range. Cannot be deleted |
+| `separator` | audio | audio | see above. Draws nothing |
+| `spectrum` | visual, audio | visual | width, corner radius, min/max height, linear / radial, **mirror bars** (each bar grows both ways from its base), **arc** (linear only: bows the base line into a dome or a bowl, optionally tapering the bars to fill the fan), **mirror spectrum** (reflects the frequency axis, with bass at the edges or in the centre), solid / gradient / spectrum colour, reactive brightness |
+| `text` | visual | visual | text, font, size (relative to canvas height), colour, alignment |
+| `background` | — | visual | colour |
 
-Every layer also has position, size, rotation, opacity, visibility and blend mode. Geometry is
-normalized 0..1, so a project renders identically at preview size and at 4K.
+Nodes that draw also have position, size, rotation, opacity, visibility and blend mode. Geometry is
+normalized 0..1, so a project renders identically at preview size and at 4K. Nodes that do **not**
+draw have none of that — a separator has no position, and the inspector shows it none.
 
-**Horizontal fill** is the bar layer's `sizeW` ("Width" in the panel). With a negative `minHz` the
+**Horizontal fill** is the spectrum node's `sizeW` ("Width" in the panel). With a negative `minHz` the
 unresolvable bands leave a gap at each edge, and `sizeW` scales the whole row into or past it —
 measured on the bundled bass preset: 0.7 fills 55% of the frame, 1.0 fills 78%, 1.28 reaches edge
 to edge.
 
-**Blend modes.** Qt Quick has no per-item blend mode. `add` and `screen` work by rendering the layer
+**Blend modes.** Qt Quick has no per-item blend mode. `add` and `screen` work by rendering the node
 to a texture and running a `ShaderEffect` that exploits premultiplied source-over compositing:
 `dst = src.rgb + (1 - src.a) * dst`, so forcing `src.a` to 0 yields exact addition, and setting it to
 the channel maximum approximates Screen. True `multiply` needs the destination as a shader input,
 which the scene graph does not expose, so it is not offered.
 
-## Three Qt details worth knowing before editing this code
+## Four Qt details worth knowing before editing this code
 
 **`QQuickWindow::grabWindow()` returns a null image** when the window is backed by a
 `QQuickRenderControl` (and Qt 5's `QQuickRenderControl::grab()` is gone). Export therefore renders
@@ -242,6 +281,16 @@ places the layer in an inner box, which is also why `frame.width`/`frame.height`
 (Related: the QML property name `layer` collides with `QQuickItem`'s FINAL `layer` property — hence
 `layerData` and the `layerObject` model role.)
 
+**`mapToItem` is not binding-reactive.** QML cannot track an `x`/`y` dependency through it, so an
+edge endpoint computed that way is correct on first paint and then never follows the node again —
+silently, with no warning. Every endpoint in the node editor is therefore plain arithmetic over
+`graphX`/`graphY`, which is the entire reason `GraphLayout.qml` exists as a file. `mapToItem` is
+fine inside an event handler, where it runs once instead of being re-evaluated.
+
+(Related: **do not use `drag.target`** to move a node card. It assigns `card.x` directly and
+permanently destroys the `x: node.graphX` binding — the node moves on screen, nothing reaches the
+model, and it snaps back on reload.)
+
 **Analyzer parameters are re-sent every frame.** `SpectrumAnalyzer::setParams` must
 therefore distinguish "buffers need rebuilding" from "a value changed". Rebuilding
 unconditionally clears the smoothing envelope and the auto-gain reference on every
@@ -249,22 +298,22 @@ frame, which silently degrades attack/decay from a filter into a plain gain and 
 auto-gain ever converging — with no error and a plausible-looking picture.
 `tst_fft::analyzerKeepsStateWhenParamsAreResent` guards this.
 
-**`ImageParticle`'s built-in sprite does not load** in this Qt build. Particles simulate correctly
-but draw nothing, with no warning. The app therefore ships `assets/glowdot.png` and sets `source:`
-explicitly. If particles ever vanish again, check that first — the system itself is rarely at fault.
-
 ## Status
 
-Implemented: audio import and playback (mp3/wav/flac/aac/m4a/ogg), live FFT preview, EQ bar layer
-(linear or radial, mirrored and arced), audio-reactive particle layer, background and text layers, the layer
-stack with reordering and visibility, `add`/`screen` blend modes, live property editing, project
-save/load, a headless `--render` mode, and export to MP4 (H.264) and MOV (ProRes 422 HQ) with
-resolution and frame-rate settings, optional audio, progress, ETA and cancellation.
+Implemented: audio import and playback (mp3/wav/flac/aac/m4a/ogg), live FFT preview, the node graph
+editor (pan, drag, drag-to-connect with type checking and cycle rejection, add and delete), the
+spectrum node (linear or radial, mirrored and arced), background and text nodes, visibility,
+`add`/`screen` blend modes, live property editing, project save/load, a headless `--render` mode,
+and export to MP4 (H.264) and MOV (ProRes 422 HQ) with resolution and frame-rate settings, optional
+audio, progress, ETA and cancellation.
 
-Not implemented: `multiply` blending (see above), and video backgrounds — the background layer takes
-colours and still images only.
+Not implemented: `multiply` blending (see above), image and video backgrounds (an Image node is
+what those want), zoom in the graph editor, and a Merge node — the flatten already draws a shared
+subgraph once per path in anticipation of one, and `tst_graph` records that as a pending test.
+
+Removed in the move to a graph: the particle layer, and the background layer's still image. Both
+are recoverable from git when they are revisited as nodes of their own.
 
 Verified end to end: duration matches `ffprobe` within one frame across all six input formats;
-export frame 0 is pixel-identical in content to the preview at the same timestamp; particle
-simulation reaches the same state at a given timestamp whether rendered at 30 or 60 fps; cancelling
+export frame 0 is pixel-identical in content to the preview at the same timestamp; cancelling
 mid-render leaves no partial file.
