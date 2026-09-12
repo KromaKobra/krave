@@ -503,6 +503,9 @@ void NodeGraph::resetNodes(const QVector<Node *> &nodes, const QVector<NodeEdge>
     }
 
     m_selectedNodeId = 0;
+    // Rebuilt BEFORE the signals below, so anything reacting to topologyChanged or
+    // selectionChanged already sees the right draw list. topologyChanged rebuilds
+    // it again, which the equality check makes a no-op.
     m_renderList->rebuild();
 
     Q_EMIT countChanged();

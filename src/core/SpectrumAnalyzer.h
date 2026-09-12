@@ -48,12 +48,12 @@ enum class SmoothingMode
     Symmetric
 };
 
-/// Everything that turns raw audio into numbers a bar layer can draw.
+/// Everything that turns raw audio into numbers a spectrum node can draw.
 ///
 /// These are deliberately "how it should look" controls rather than a faithful
 /// analyser: a straight FFT readout is spiky, slopes off steeply toward the
-/// treble, and never settles. See AudioProviderLayer, which owns a set of these
-/// and shares its output with every bar layer bound to it.
+/// treble, and never settles. See SeparatorNode, which owns a set of these and
+/// shares its output with every spectrum node wired to it.
 struct SpectrumParams
 {
     /// True analysis window, in samples. This alone sets frequency resolution:
