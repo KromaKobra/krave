@@ -4,9 +4,50 @@
         "height": 1080,
         "width": 1920
     },
-    "format": "music-visualizer-project",
-    "layers": [
+    "connections": [
         {
+            "from": 2,
+            "port": "audio",
+            "to": 3
+        },
+        {
+            "from": 3,
+            "port": "audio",
+            "to": 5
+        },
+        {
+            "from": 4,
+            "port": "visual",
+            "to": 5
+        },
+        {
+            "from": 5,
+            "port": "visual",
+            "to": 1
+        }
+    ],
+    "format": "music-visualizer-project",
+    "nodes": [
+        {
+            "id": 1,
+            "props": {
+                "graphX": 40,
+                "graphY": 490,
+                "name": "Output"
+            },
+            "type": "output"
+        },
+        {
+            "id": 2,
+            "props": {
+                "graphX": 40,
+                "graphY": 40,
+                "name": "Audio"
+            },
+            "type": "audio"
+        },
+        {
+            "id": 3,
             "props": {
                 "amplitudeMode": "db",
                 "attackMs": 5,
@@ -14,42 +55,37 @@
                 "bandCount": 34,
                 "bandMeasure": "rms",
                 "bandNormalization": 0.7,
-                "blendMode": "normal",
                 "ceilingDb": -12,
                 "decayMs": 220,
                 "floorDb": -79,
                 "floorLevel": 0.012,
                 "gamma": 3,
                 "gateDb": 3,
+                "graphX": 40,
+                "graphY": 190,
                 "hzLinearFactor": 0,
-                "layerOpacity": 1,
-                "layerRotation": 0,
-                "layerVisible": true,
                 "linearGain": 30,
                 "lowFreqMagnitude": 0.2,
                 "maxHz": 400,
                 "minHz": 10,
                 "name": "Audio provider",
                 "normalizationTau": 3,
-                "posX": 0.5,
-                "posY": 0.5,
                 "scalingCurve": "power",
-                "sizeH": 1,
-                "sizeW": 1,
                 "smoothMs": 60,
                 "smoothingMode": "attackDecay",
                 "spatialSmoothing": 0,
                 "tiltDbPerOctave": 0,
                 "windowMs": 85
             },
-            "type": "audio"
+            "type": "separator"
         },
         {
+            "id": 4,
             "props": {
                 "blendMode": "normal",
                 "color": "#ff0a0a14",
-                "fillMode": "crop",
-                "imageSource": "",
+                "graphX": 264,
+                "graphY": 40,
                 "layerOpacity": 1,
                 "layerRotation": 0,
                 "layerVisible": true,
@@ -62,6 +98,7 @@
             "type": "background"
         },
         {
+            "id": 5,
             "props": {
                 "barWidthRatio": 1,
                 "blendMode": "normal",
@@ -69,6 +106,8 @@
                 "colorB": "#ffe8ecff",
                 "colorMode": "solid",
                 "cornerRadius": 0,
+                "graphX": 40,
+                "graphY": 340,
                 "growUpward": true,
                 "innerRadius": 0.35,
                 "layerOpacity": 1,
@@ -81,13 +120,12 @@
                 "orientation": "linear",
                 "posX": 0.5,
                 "posY": 0.8,
-                "providerId": 0,
                 "reactiveBrightness": 0,
                 "sizeH": 0.4,
                 "sizeW": 1
             },
-            "type": "bars"
+            "type": "spectrum"
         }
     ],
-    "version": 2
+    "version": 3
 }

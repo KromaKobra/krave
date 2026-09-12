@@ -1,74 +1,124 @@
 {
-    "format": "music-visualizer-project",
-    "version": 2,
     "canvas": {
-        "width": 1920,
+        "color": "#ff0a0a14",
         "height": 1080,
-        "color": "#ff0a0a14"
+        "width": 1920
     },
-    "layers": [
+    "connections": [
         {
-            "type": "audio",
+            "from": 2,
+            "port": "audio",
+            "to": 3
+        },
+        {
+            "from": 3,
+            "port": "audio",
+            "to": 5
+        },
+        {
+            "from": 4,
+            "port": "visual",
+            "to": 5
+        },
+        {
+            "from": 5,
+            "port": "visual",
+            "to": 1
+        }
+    ],
+    "format": "music-visualizer-project",
+    "nodes": [
+        {
+            "id": 1,
             "props": {
-                "name": "Audio provider",
-                "layerVisible": true,
-                "layerOpacity": 1,
-                "blendMode": "normal",
-                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
-
+                "graphX": 40,
+                "graphY": 490,
+                "name": "Output"
+            },
+            "type": "output"
+        },
+        {
+            "id": 2,
+            "props": {
+                "graphX": 40,
+                "graphY": 40,
+                "name": "Audio"
+            },
+            "type": "audio"
+        },
+        {
+            "id": 3,
+            "props": {
+                "attackMs": 5,
                 "bandCount": 34,
-                "fftSize": 4096,
-                "minHz": 45,
-                "maxHz": 12000,
-
                 "bandMeasure": "rms",
                 "bandNormalization": 0.7,
-                "normalizationTau": 3.0,
-                "tiltDbPerOctave": 0.0,
-                "floorDb": -78,
                 "ceilingDb": -4,
-                "gateDb": 8,
-                "scalingCurve": "power",
-                "gamma": 3.0,
-
-                "attackMs": 5,
                 "decayMs": 220,
+                "fftSize": 4096,
+                "floorDb": -78,
+                "floorLevel": 0.012,
+                "gamma": 3.0,
+                "gateDb": 8,
+                "graphX": 40,
+                "graphY": 190,
+                "maxHz": 12000,
+                "minHz": 45,
+                "name": "Audio provider",
+                "normalizationTau": 3.0,
+                "scalingCurve": "power",
                 "spatialSmoothing": 0.15,
-                "floorLevel": 0.012
-            }
+                "tiltDbPerOctave": 0.0
+            },
+            "type": "separator"
         },
         {
-            "type": "background",
+            "id": 4,
             "props": {
-                "name": "Backdrop",
-                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
-                "color": "#ff0a0a14", "imageSource": "", "fillMode": "crop"
-            }
-        },
-        {
-            "type": "bars",
-            "props": {
-                "name": "Skyline",
-                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.8, "sizeW": 1.0, "sizeH": 0.4,
+                "blendMode": "normal",
+                "color": "#ff0a0a14",
+                "graphX": 264,
+                "graphY": 40,
+                "layerOpacity": 1,
                 "layerRotation": 0,
-
-                "providerId": 0,
-                "mirrorSpectrum": true,
-                "orientation": "linear",
-                "growUpward": true,
+                "layerVisible": true,
+                "name": "Backdrop",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeH": 1,
+                "sizeW": 1
+            },
+            "type": "background"
+        },
+        {
+            "id": 5,
+            "props": {
                 "barWidthRatio": 1.0,
-                "cornerRadius": 0,
-                "minHeight": 0.02,
-                "maxHeight": 0.95,
-                "innerRadius": 0.35,
-
-                "colorMode": "solid",
+                "blendMode": "normal",
                 "colorA": "#ffe8ecff",
                 "colorB": "#ffe8ecff",
-                "reactiveBrightness": 0
-            }
+                "colorMode": "solid",
+                "cornerRadius": 0,
+                "graphX": 40,
+                "graphY": 340,
+                "growUpward": true,
+                "innerRadius": 0.35,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "maxHeight": 0.95,
+                "minHeight": 0.02,
+                "mirrorSpectrum": true,
+                "name": "Skyline",
+                "orientation": "linear",
+                "posX": 0.5,
+                "posY": 0.8,
+                "reactiveBrightness": 0,
+                "sizeH": 0.4,
+                "sizeW": 1.0
+            },
+            "type": "spectrum"
         }
-    ]
+    ],
+    "version": 3
 }

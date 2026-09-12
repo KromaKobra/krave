@@ -1,70 +1,126 @@
 {
-    "format": "music-visualizer-project",
-    "version": 2,
-    "canvas": { "width": 1920, "height": 1080, "color": "#ff000000" },
-    "layers": [
+    "canvas": {
+        "color": "#ff000000",
+        "height": 1080,
+        "width": 1920
+    },
+    "connections": [
         {
-            "type": "audio",
+            "from": 2,
+            "port": "audio",
+            "to": 3
+        },
+        {
+            "from": 3,
+            "port": "audio",
+            "to": 5
+        },
+        {
+            "from": 4,
+            "port": "visual",
+            "to": 5
+        },
+        {
+            "from": 5,
+            "port": "visual",
+            "to": 1
+        }
+    ],
+    "format": "music-visualizer-project",
+    "nodes": [
+        {
+            "id": 1,
             "props": {
-                "name": "Audio provider",
-                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
-
-                "bandCount": 124,
-                "windowMs": 85,
-                "minHz": 0.1,
-                "maxHz": 1200,
-                "hzLinearFactor": 1.0,
-
-                "bandMeasure": "rms",
-                "averageCount": 9,
+                "graphX": 40,
+                "graphY": 490,
+                "name": "Output"
+            },
+            "type": "output"
+        },
+        {
+            "id": 2,
+            "props": {
+                "graphX": 40,
+                "graphY": 40,
+                "name": "Audio"
+            },
+            "type": "audio"
+        },
+        {
+            "id": 3,
+            "props": {
                 "amplitudeMode": "linear",
+                "averageCount": 9,
+                "bandCount": 124,
+                "bandMeasure": "rms",
+                "bandNormalization": 0.0,
+                "floorLevel": 0.0,
+                "gamma": 1.3,
+                "gateDb": 0.0,
+                "graphX": 40,
+                "graphY": 190,
+                "hzLinearFactor": 1.0,
                 "linearGain": 8.0,
                 "lowFreqMagnitude": 0.5,
-                "tiltDbPerOctave": 0.0,
-                "bandNormalization": 0.0,
-                "gateDb": 0.0,
+                "maxHz": 1200,
+                "minHz": 0.1,
+                "name": "Audio provider",
                 "scalingCurve": "power",
-                "gamma": 1.3,
-
-                "smoothingMode": "symmetric",
                 "smoothMs": 60,
+                "smoothingMode": "symmetric",
                 "spatialSmoothing": 0.0,
-                "floorLevel": 0.0
-            }
+                "tiltDbPerOctave": 0.0,
+                "windowMs": 85
+            },
+            "type": "separator"
         },
         {
-            "type": "background",
+            "id": 4,
             "props": {
-                "name": "Backdrop",
-                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.5, "sizeW": 1, "sizeH": 1, "layerRotation": 0,
-                "color": "#ff000000", "imageSource": "", "fillMode": "crop"
-            }
-        },
-        {
-            "type": "bars",
-            "props": {
-                "name": "Spectrum",
-                "layerVisible": true, "layerOpacity": 1, "blendMode": "normal",
-                "posX": 0.5, "posY": 0.76, "sizeW": 1.0, "sizeH": 0.48,
+                "blendMode": "normal",
+                "color": "#ff000000",
+                "graphX": 264,
+                "graphY": 40,
+                "layerOpacity": 1,
                 "layerRotation": 0,
-
-                "providerId": 0,
-                "mirrorSpectrum": true,
-                "orientation": "linear",
-                "growUpward": true,
+                "layerVisible": true,
+                "name": "Backdrop",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeH": 1,
+                "sizeW": 1
+            },
+            "type": "background"
+        },
+        {
+            "id": 5,
+            "props": {
                 "barWidthRatio": 1.0,
-                "cornerRadius": 0,
-                "minHeight": 0.196,
-                "maxHeight": 1.0,
-                "innerRadius": 0.35,
-
-                "colorMode": "solid",
+                "blendMode": "normal",
                 "colorA": "#ffffffff",
                 "colorB": "#ffffffff",
-                "reactiveBrightness": 0
-            }
+                "colorMode": "solid",
+                "cornerRadius": 0,
+                "graphX": 40,
+                "graphY": 340,
+                "growUpward": true,
+                "innerRadius": 0.35,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "maxHeight": 1.0,
+                "minHeight": 0.196,
+                "mirrorSpectrum": true,
+                "name": "Spectrum",
+                "orientation": "linear",
+                "posX": 0.5,
+                "posY": 0.76,
+                "reactiveBrightness": 0,
+                "sizeH": 0.48,
+                "sizeW": 1.0
+            },
+            "type": "spectrum"
         }
-    ]
+    ],
+    "version": 3
 }
