@@ -75,6 +75,10 @@ public:
     Q_INVOKABLE void unlink(int toId, const QString &toPort);
 
     Q_INVOKABLE mv::Node *nodeById(int id) const;
+    /// The node at model row `row`, or nullptr. For QML code that has to sweep
+    /// every node -- GraphLayout's port hit test -- without reaching into data()
+    /// with a hard-coded role number.
+    Q_INVOKABLE mv::Node *nodeAt(int row) const;
 
     /// This type's input ports, as [{ name, kind, accepts, stacked, label, index,
     /// count }] for the editor.

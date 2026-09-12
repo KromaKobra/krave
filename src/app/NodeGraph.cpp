@@ -310,6 +310,13 @@ Node *NodeGraph::nodeById(int id) const
     return nullptr;
 }
 
+Node *NodeGraph::nodeAt(int row) const
+{
+    if (row < 0 || row >= m_nodes.size())
+        return nullptr;
+    return m_nodes.at(row);
+}
+
 void NodeGraph::setSelectedNodeId(int id)
 {
     const int resolved = nodeById(id) ? id : 0;

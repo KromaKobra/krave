@@ -70,10 +70,18 @@ ApplicationWindow {
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
             }
 
-            NodeListPanel {
-                SplitView.preferredWidth: Theme.leftPanelWidth
-                SplitView.minimumWidth: 200
-                SplitView.maximumWidth: 420
+            NodeGraphPanel {
+                // Wider than the layer list was, and allowed much wider: a graph
+                // needs room in two dimensions, and the handle is already draggable.
+                SplitView.preferredWidth: Theme.graphPanelWidth
+                SplitView.minimumWidth: 280
+                SplitView.maximumWidth: 640
+
+                // Belt and braces. ExportDialog is modal, so this panel is already
+                // unreachable during an export -- but a topology change would
+                // beginResetModel a RenderList that two live scene graphs are
+                // iterating, and that is not a race worth leaving to the modality.
+                enabled: !exportController.exporting
             }
 
             CanvasStage {

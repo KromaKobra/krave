@@ -41,7 +41,11 @@ set(app_qml_files
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
     qml/panels/TopBar.qml
-    qml/panels/NodeListPanel.qml
+    qml/panels/NodeGraphPanel.qml
+    qml/graph/GraphCanvas.qml
+    qml/graph/NodeCard.qml
+    qml/graph/PortDot.qml
+    qml/graph/EdgeLink.qml
     qml/panels/CanvasStage.qml
     qml/panels/PropertyPanel.qml
     qml/panels/inspectors/SpectrumInspector.qml
@@ -70,12 +74,14 @@ set(app_qml_files
     qml/controls/WaveformStrip.qml
 )
 
-# Design tokens, the icon set and the node-type table. Registered as singletons
-# so every QML file reads one instance of each rather than constructing its own.
+# Design tokens, the icon set, the node-type table and the graph's geometry maths.
+# Registered as singletons so every QML file reads one instance of each rather than
+# constructing its own.
 set(app_qml_singletons
     qml/Theme.qml
     qml/Icons.qml
     qml/NodeTypes.qml
+    qml/GraphLayout.qml
 )
 
 list(APPEND app_qml_files ${app_qml_singletons})
