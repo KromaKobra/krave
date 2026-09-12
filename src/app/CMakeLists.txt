@@ -1,10 +1,33 @@
+# mvapp: the document model -- layer types, the stack and load/save.
+#
+# Split out of the app target so the tests can link it rather than listing its
+# .cpp files one by one. That list drifted every time the model was split into
+# another file, and a test target that silently stops compiling half the model
+# is a bad way to find out.
+#
+# No Quick and no Multimedia here: AudioEngine, SpectrumEngine and
+# ExportController stay in the executable, so this library builds headless.
+add_library(mvapp STATIC
+    Layer.h            Layer.cpp
+    LayerModel.h       LayerModel.cpp
+    Project.h          Project.cpp
+)
+
+target_include_directories(mvapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(mvapp PUBLIC
+    mvcore
+    Qt6::Core
+    Qt6::Gui   # QColor on the layer properties
+    Qt6::Qml   # QQmlEngine::setObjectOwnership, Q_INVOKABLE registration
+)
+
+set_target_properties(mvapp PROPERTIES AUTOMOC ON)
+
 qt_add_executable(krave
     main.cpp
     AudioEngine.h      AudioEngine.cpp
     ExportController.h ExportController.cpp
-    Layer.h            Layer.cpp
-    LayerModel.h       LayerModel.cpp
-    Project.h          Project.cpp
     SpectrumEngine.h   SpectrumEngine.cpp
 )
 
@@ -90,6 +113,7 @@ qt_add_shaders(krave "blend_shaders"
 )
 
 target_link_libraries(krave PRIVATE
+    mvapp
     mvcore
     Qt6::Core
     Qt6::Gui
