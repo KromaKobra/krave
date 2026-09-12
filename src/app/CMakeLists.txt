@@ -10,6 +10,7 @@
 add_library(mvapp STATIC
     Layer.h            Layer.cpp
     LayerModel.h       LayerModel.cpp
+    NodePorts.h        NodePorts.cpp
     Project.h          Project.cpp
 )
 

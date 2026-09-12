@@ -11,8 +11,15 @@ target_link_libraries(tst_project PRIVATE mvapp Qt6::Test)
 set_target_properties(tst_project PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME tst_project COMMAND tst_project)
 
-# It builds a QGuiApplication only to own the QML engine types -- it opens no
-# window. Forcing the offscreen platform keeps it runnable over SSH, in CI and
+# Graph topology: the port table, link validation, the flatten. Separate from
+# tst_project so a broken flatten and a broken round-trip report separately.
+qt_add_executable(tst_graph tst_graph.cpp)
+target_link_libraries(tst_graph PRIVATE mvapp Qt6::Test)
+set_target_properties(tst_graph PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME tst_graph COMMAND tst_graph)
+
+# Both build a QGuiApplication only to own the QML engine types -- they open no
+# window. Forcing the offscreen platform keeps them runnable over SSH, in CI and
 # in the Nix build sandbox, where connecting to a display server would abort.
-set_tests_properties(tst_project PROPERTIES
+set_tests_properties(tst_project tst_graph PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
