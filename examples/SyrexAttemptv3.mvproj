@@ -92,6 +92,46 @@
                 "sizeW": 1.29
             },
             "type": "bars"
+        },
+        {
+            "props": {
+                "alignment": "center",
+                "blendMode": "normal",
+                "bold": true,
+                "color": "#ffffffff",
+                "fontFamily": "Segoe UI",
+                "fontScale": 0.035,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "TextT",
+                "posX": 0.5,
+                "posY": 0.91,
+                "sizeH": 1,
+                "sizeW": 1,
+                "text": "Track Title"
+            },
+            "type": "text"
+        },
+        {
+            "props": {
+                "alignment": "center",
+                "blendMode": "normal",
+                "bold": true,
+                "color": "#ffffffff",
+                "fontFamily": "Segoe UI",
+                "fontScale": 0.026,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "Text",
+                "posX": 0.5,
+                "posY": 0.96,
+                "sizeH": 1,
+                "sizeW": 1.21,
+                "text": "artist1, artist2, artist3"
+            },
+            "type": "text"
         }
     ],
     "version": 2

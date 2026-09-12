@@ -43,6 +43,11 @@ set(app_qml_files
     qml/panels/LayerListPanel.qml
     qml/panels/CanvasStage.qml
     qml/panels/PropertyPanel.qml
+    qml/panels/inspectors/BarsInspector.qml
+    qml/panels/inspectors/AudioInspector.qml
+    qml/panels/inspectors/TextInspector.qml
+    qml/panels/inspectors/ParticlesInspector.qml
+    qml/panels/inspectors/BackgroundInspector.qml
     qml/panels/TimelinePanel.qml
     qml/panels/ExportDialog.qml
     qml/controls/AppButton.qml
