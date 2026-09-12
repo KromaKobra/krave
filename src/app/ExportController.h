@@ -24,15 +24,15 @@ QT_END_NAMESPACE
 namespace mv {
 
 class AudioEngine;
-class LayerModel;
+class NodeGraph;
 class Project;
 class SpectrumEngine;
 
 /// Renders the visualizer offscreen and pipes raw frames to ffmpeg.
 ///
 /// The offscreen window loads the SAME VisualizerCanvas.qml the preview uses and
-/// binds it to the SAME Layer objects, so the export cannot drift from what the
-/// user saw. Only the pacing differs: frames are produced as fast as the GPU and
+/// binds it to the SAME RenderList over the SAME Node objects, so the export
+/// cannot drift from what the user saw. Only the pacing differs: frames are produced as fast as the GPU and
 /// the pipe allow rather than in real time.
 ///
 /// A fixed-step QAnimationDriver is installed for the duration of the export, so
@@ -72,7 +72,7 @@ public:
     explicit ExportController(QObject *parent = nullptr);
     ~ExportController() override;
 
-    void setContext(QQmlEngine *engine, LayerModel *layers, AudioEngine *audio,
+    void setContext(QQmlEngine *engine, NodeGraph *graph, AudioEngine *audio,
                     SpectrumEngine *spectrum, Project *project);
 
     /// Begin an export to `outputUrl`. The container is chosen from its suffix.
@@ -110,7 +110,7 @@ private:
 
     // Collaborators, not owned.
     QQmlEngine *m_qmlEngine = nullptr;
-    LayerModel *m_layers = nullptr;
+    NodeGraph *m_graph = nullptr;
     AudioEngine *m_audio = nullptr;
     SpectrumEngine *m_spectrum = nullptr;
     Project *m_project = nullptr;

@@ -1,8 +1,10 @@
-// Analysis settings for an audio provider layer.
+// Analysis settings for a separator node.
 //
 // The largest of the per-type blocks by a wide margin: every knob that turns a
 // stream of samples into the numbers the bars draw is here, because that is the
-// whole purpose of the layer. See Layer.h for what each one does to the DSP.
+// whole purpose of the node. See Node.h for what each one does to the DSP -- and
+// for why a separator reads the PCM at the root of its audio chain rather than its
+// immediate input's bands.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -13,21 +15,21 @@ import "../../controls"
 ColumnLayout {
     id: root
 
-    /// The selected Layer, or null.
+    /// The selected Node, or null.
     property var node: null
     /// Its typeId, hoisted so the visibility test costs no null check.
     property string nodeType: ""
 
     Layout.fillWidth: true
     spacing: Theme.space4
-    visible: root.nodeType === "audio"
+    visible: root.nodeType === "separator"
 
     SectionHeader { text: qsTr("Resolution") }
 
     ParamSlider {
         label: qsTr("Band count")
-        info: qsTr("How many bands the spectrum is split into. Every bar layer "
-                   + "fed by this one draws this many bars.")
+        info: qsTr("How many bands the spectrum is split into. Every spectrum node "
+                   + "wired to this one draws this many bars.")
         target: root.node; propertyName: "bandCount"
         from: 4; to: 256; stepSize: 1
     }

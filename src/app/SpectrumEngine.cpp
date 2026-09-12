@@ -1,5 +1,5 @@
 #include "SpectrumEngine.h"
-#include "LayerModel.h"
+#include "NodeGraph.h"
 
 #include <QMetaObject>
 
@@ -15,22 +15,23 @@ QVector<AnalysisResult> SpectrumWorker::analyze(const AudioBuffer &buffer, doubl
     results.reserve(requests.size());
 
     for (const AnalysisRequest &req : requests) {
-        SpectrumAnalyzer &analyzer = m_analyzers[req.layerId];
+        SpectrumAnalyzer &analyzer = m_analyzers[req.nodeId];
         analyzer.setParams(req.params);
 
         AnalysisResult r;
-        r.layerId = req.layerId;
+        r.nodeId = req.nodeId;
         r.frame = analyzer.analyze(buffer, timeSeconds, dt);
         results.append(r);
     }
 
-    // Drop analyzers for layers that no longer exist, so a long editing session
-    // does not accumulate state for deleted layers.
+    // Drop analyzers for nodes that no longer exist, so a long editing session
+    // does not accumulate state for deleted nodes. Load-bearing now that ids are
+    // never reused: without it a deleted node's envelope would linger forever.
     if (m_analyzers.size() > size_t(requests.size())) {
         QSet<int> live;
         live.reserve(requests.size());
         for (const AnalysisRequest &req : requests)
-            live.insert(req.layerId);
+            live.insert(req.nodeId);
         for (auto it = m_analyzers.begin(); it != m_analyzers.end();)
             it = live.contains(it->first) ? std::next(it) : m_analyzers.erase(it);
     }
@@ -86,9 +87,9 @@ SpectrumEngine::~SpectrumEngine()
     m_thread.wait();
 }
 
-void SpectrumEngine::setLayerModel(LayerModel *model)
+void SpectrumEngine::setGraph(NodeGraph *graph)
 {
-    m_model = model;
+    m_graph = graph;
 }
 
 void SpectrumEngine::setBuffer(const AudioBuffer &buffer)
@@ -129,13 +130,20 @@ void SpectrumEngine::resetExportState()
 QVector<AnalysisRequest> SpectrumEngine::collectRequests() const
 {
     QVector<AnalysisRequest> requests;
-    if (!m_model)
+    if (!m_graph)
         return requests;
 
-    for (Layer *layer : m_model->spectrumLayers()) {
+    // Every source whose audioRoot() resolves: the AudioNode plus the separators
+    // actually plugged into something. A separator wired to nothing has no samples
+    // to analyse, so it costs nothing.
+    //
+    // Sources feeding an UNRENDERED spectrum are deliberately NOT pruned. Doing so
+    // would couple the audio scheduler to the render list and buy a "my bars froze
+    // while I was rewiring" bug class for no measurable saving.
+    for (AudioSourceNode *source : m_graph->liveAudioSources()) {
         AnalysisRequest req;
-        req.layerId = layer->layerId();
-        req.params = layer->analysisParams();
+        req.nodeId = source->nodeId();
+        req.params = source->analysisParams();
         requests.append(req);
     }
     return requests;
@@ -143,41 +151,33 @@ QVector<AnalysisRequest> SpectrumEngine::collectRequests() const
 
 void SpectrumEngine::applyResults(const QVector<AnalysisResult> &results)
 {
-    if (!m_model)
+    if (!m_graph)
         return;
 
-    const QVector<Layer *> consumers = m_model->spectrumLayers();
+    const QVector<AudioSourceNode *> sources = m_graph->liveAudioSources();
     for (const AnalysisResult &r : results) {
-        for (Layer *layer : consumers) {
-            if (layer->layerId() == r.layerId) {
-                layer->applyFrame(r.frame);
+        for (AudioSourceNode *source : sources) {
+            if (source->nodeId() == r.nodeId) {
+                source->applyFrame(r.frame);
                 break;
             }
         }
     }
 
-    // Fan the providers' output out to the bar layers bound to them. Doing it
-    // here rather than analysing per bar layer means the FFT cost scales with
-    // the number of providers, not the number of things drawing them.
-    const QVector<AudioProviderLayer *> providers = m_model->audioProviders();
-    if (providers.isEmpty())
-        return;
-
-    for (BarLayer *bars : m_model->barLayers()) {
-        AudioProviderLayer *source = nullptr;
-        if (bars->providerId() != 0) {
-            for (AudioProviderLayer *p : providers) {
-                if (p->layerId() == bars->providerId()) {
-                    source = p;
-                    break;
-                }
-            }
-        }
-        // providerId 0, or a provider that has since been deleted, falls back to
-        // the first one in the stack.
-        if (!source)
-            source = providers.first();
-        bars->takeFrame(source->frame());
+    // Fan each source's output out along its audio edges. Doing it here rather
+    // than analysing per spectrum node means the FFT cost scales with the number
+    // of sources, not with the number of things drawing them.
+    //
+    // An unconnected spectrum draws NOTHING. Before the graph it fell back to the
+    // first provider in the stack, which was the only thing that made the hidden
+    // providerId appear to work; now that wiring is explicit and visible on screen,
+    // that fallback would be guessing. Honest beats magical.
+    for (SpectrumNode *spectrum : m_graph->spectrumNodes()) {
+        auto *source = qobject_cast<AudioSourceNode *>(spectrum->input(QStringLiteral("audio")));
+        if (source)
+            spectrum->takeFrame(source->frame());
+        else
+            spectrum->clearFrame();
     }
 }
 

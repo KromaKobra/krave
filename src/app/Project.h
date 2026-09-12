@@ -7,13 +7,15 @@
 
 namespace mv {
 
-class LayerModel;
+class NodeGraph;
 
 /// Load/save of the visualizer configuration.
 ///
-/// Layer properties are read and written by walking each layer's QMetaObject, so
-/// a new Q_PROPERTY on a Layer subclass is persisted automatically -- there is no
-/// per-property serialization code to forget to update.
+/// Node properties are read and written by walking each node's QMetaObject, so a
+/// new Q_PROPERTY on a Node subclass is persisted automatically -- there is no
+/// per-property serialization code to forget to update. A node's `id` sits
+/// alongside `type` rather than inside `props`, which keeps `nodeId` non-writable
+/// and so keeps it out of that walk.
 ///
 /// The project file intentionally stores NO audio path. Projects are meant to be
 /// reusable templates; the user re-links a track after loading one.
@@ -33,13 +35,17 @@ class Project : public QObject
 public:
     /// Bumped when the on-disk shape changes incompatibly.
     ///
-    /// v2 moved all audio conditioning off BarLayer onto a dedicated
-    /// AudioProviderLayer. v1 files still load: see migrateFromV1.
-    static constexpr int kFormatVersion = 2;
+    /// v3 replaced the ordered layer stack with a node graph: "layers" became
+    /// "nodes" plus an explicit "connections" edge list. Nothing older loads --
+    /// load() rejects it and names the conversion script. Keeping an in-app
+    /// migration would have meant carrying migrateFromV1, migrateLegacyValues and
+    /// a new migrateFromV2 forever, and pinning the typeId strings they read;
+    /// tools/migrate_v2_to_v3.py does it once instead.
+    static constexpr int kFormatVersion = 3;
 
     explicit Project(QObject *parent = nullptr);
 
-    void setLayerModel(LayerModel *model);
+    void setGraph(NodeGraph *graph);
 
     Q_INVOKABLE bool save(const QUrl &url);
     Q_INVOKABLE bool load(const QUrl &url);
@@ -68,7 +74,7 @@ private:
     void setModified(bool modified);
     void setError(const QString &message);
 
-    LayerModel *m_model = nullptr;
+    NodeGraph *m_graph = nullptr;
     QString m_filePath;
     bool m_modified = false;
     QString m_lastError;

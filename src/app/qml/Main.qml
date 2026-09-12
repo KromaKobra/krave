@@ -70,7 +70,7 @@ ApplicationWindow {
                 Behavior on color { ColorAnimation { duration: Theme.durFast } }
             }
 
-            LayerListPanel {
+            NodeListPanel {
                 SplitView.preferredWidth: Theme.leftPanelWidth
                 SplitView.minimumWidth: 200
                 SplitView.maximumWidth: 420
@@ -111,8 +111,10 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: StandardKey.Delete
-        enabled: layerModel.selectedIndex >= 0 && !window.typing
-        onActivated: layerModel.removeLayer(layerModel.selectedIndex)
+        // canRemove refuses the essential Output and Audio nodes. The `typing`
+        // guard must stay, or the inspector's text fields lose Delete.
+        enabled: nodeGraph.canRemove(nodeGraph.selectedNodeId) && !window.typing
+        onActivated: nodeGraph.removeNode(nodeGraph.selectedNodeId)
     }
 
     // ----------------------------------------------------------------- dialogs

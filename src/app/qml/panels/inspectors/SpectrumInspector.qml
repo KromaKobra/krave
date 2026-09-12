@@ -1,8 +1,8 @@
-// Shape and colour controls for a bar layer.
+// Shape and colour controls for a spectrum node.
 //
 // One of the per-type blocks PropertyPanel stacks up. It stays instantiated and
 // hides itself -- see the header comment there for why -- which is also why every
-// binding tolerates being pointed at a layer that has no such property.
+// binding tolerates being pointed at a node that has no such property.
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
@@ -13,14 +13,14 @@ import "../../controls"
 ColumnLayout {
     id: root
 
-    /// The selected Layer, or null.
+    /// The selected Node, or null.
     property var node: null
     /// Its typeId, hoisted so the visibility test costs no null check.
     property string nodeType: ""
 
     Layout.fillWidth: true
     spacing: Theme.space4
-    visible: root.nodeType === "bars"
+    visible: root.nodeType === "spectrum"
 
     SectionHeader { text: qsTr("Shape") }
 
@@ -31,9 +31,9 @@ ColumnLayout {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeKicker
         text: root.node && root.node.mirrorSpectrum
-              ? qsTr("%1 bars — the audio layer's bands, reflected")
+              ? qsTr("%1 bars — the separator's bands, reflected")
                   .arg(root.node.barCount)
-              : qsTr("%1 bars, set by the audio layer's band count")
+              : qsTr("%1 bars, set by the separator's band count")
                   .arg(root.node ? root.node.barCount : 0)
     }
 
@@ -50,7 +50,7 @@ ColumnLayout {
     ToggleRow {
         label: qsTr("Mirror bars")
         info: qsTr("Each bar grows both ways from its base line instead of "
-                   + "only into the layer.")
+                   + "only into the node's box.")
         details: qsTr("This is a vertical mirror, and it works in either "
                       + "orientation: linear bars grow up and down from the "
                       + "centre line, radial bars grow outward and inward from "
@@ -65,7 +65,7 @@ ColumnLayout {
         visible: root.node && root.node.orientation === "radial"
         label: qsTr("Inner radius")
         info: qsTr("Radial only: how big the hole in the middle is, as a "
-                   + "fraction of the layer's shorter side.")
+                   + "fraction of the node's shorter side.")
         target: root.node
         propertyName: "innerRadius"
         from: 0.05; to: 0.9
@@ -120,7 +120,7 @@ ColumnLayout {
     ParamSlider {
         label: qsTr("Max height")
         info: qsTr("How tall a bar at full level reaches, as a fraction of the "
-                   + "layer's height.")
+                   + "node's height.")
         target: root.node; propertyName: "maxHeight"
         from: 0.05; to: 1
     }
@@ -134,7 +134,7 @@ ColumnLayout {
                       + "what gives the symmetric skyline look, and it doubles "
                       + "the number of bars drawn.\n\n"
                       + "Independent of both Orientation and Mirror bars — on a "
-                      + "radial layer it makes the ring symmetric about its "
+                      + "radial node it makes the ring symmetric about its "
                       + "vertical axis.")
         target: root.node
         propertyName: "mirrorSpectrum"
@@ -189,7 +189,10 @@ ColumnLayout {
         color: Theme.textGhost
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeKicker
-        text: qsTr("Frequency response, smoothing and dynamics live on the "
-                   + "Audio layer that feeds this one.")
+        text: root.node && root.node.sourceId("audio") === 0
+              ? qsTr("Nothing is wired to this node's audio input, so it has no bands "
+                     + "to draw. Connect a separator to it in the graph.")
+              : qsTr("Frequency response, smoothing and dynamics live on the separator "
+                     + "that feeds this one.")
     }
 }

@@ -14,27 +14,27 @@
 
 namespace mv {
 
-class LayerModel;
-class BarLayer;
+class NodeGraph;
 
-/// One layer's analysis request for a single frame.
+/// One node's analysis request for a single frame.
 struct AnalysisRequest
 {
-    int layerId = 0;
+    int nodeId = 0;
     SpectrumParams params;
 };
 
-/// One layer's analysis result for a single frame.
+/// One node's analysis result for a single frame.
 struct AnalysisResult
 {
-    int layerId = 0;
+    int nodeId = 0;
     SpectrumFrame frame;
 };
 
 /// Runs spectrum analysis off the GUI thread.
 ///
-/// Holds one SpectrumAnalyzer per layer id, so each bar layer keeps its own
-/// smoothing envelope and its own band layout.
+/// Holds one SpectrumAnalyzer per node id, so each audio source keeps its own
+/// smoothing envelope and its own band layout. Node ids are never reused within a
+/// session, which is what makes that keying safe -- see NodeGraph::m_nextNodeId.
 class SpectrumWorker : public QObject
 {
     Q_OBJECT
@@ -63,11 +63,12 @@ private:
     std::unordered_map<int, SpectrumAnalyzer> m_analyzers;
 };
 
-/// GUI-side controller: ticks at the preview frame rate, gathers each bar layer's
-/// parameters, hands them to the worker, and writes results back into the layers.
+/// GUI-side controller: ticks at the preview frame rate, gathers each live audio
+/// source's parameters, hands them to the worker, and writes results back into the
+/// nodes.
 ///
-/// Because the layers themselves hold the band data, the preview canvas and the
-/// offscreen export canvas can bind to the very same Layer objects.
+/// Because the nodes themselves hold the band data, the preview canvas and the
+/// offscreen export canvas can bind to the very same Node objects.
 class SpectrumEngine : public QObject
 {
     Q_OBJECT
@@ -78,7 +79,7 @@ public:
     explicit SpectrumEngine(QObject *parent = nullptr);
     ~SpectrumEngine() override;
 
-    void setLayerModel(LayerModel *model);
+    void setGraph(NodeGraph *graph);
     void setBuffer(const AudioBuffer &buffer);
 
     /// Start/stop the live preview tick.
@@ -99,7 +100,7 @@ public:
 
 Q_SIGNALS:
     void runningChanged();
-    /// Emitted after each frame's results have been applied to the layers.
+    /// Emitted after each frame's results have been applied to the nodes.
     void frameApplied();
 
 private:
@@ -107,7 +108,7 @@ private:
     void applyResults(const QVector<AnalysisResult> &results);
     void tick();
 
-    LayerModel *m_model = nullptr;
+    NodeGraph *m_graph = nullptr;
     AudioBuffer m_buffer;
 
     QThread m_thread;

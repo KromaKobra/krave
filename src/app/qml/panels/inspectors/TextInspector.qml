@@ -9,7 +9,7 @@ import "../../controls"
 ColumnLayout {
     id: root
 
-    /// The selected Layer, or null.
+    /// The selected Node, or null.
     property var node: null
     /// Its typeId, hoisted so the visibility test costs no null check.
     property string nodeType: ""
@@ -47,7 +47,7 @@ ColumnLayout {
     }
     SegmentedControl {
         label: qsTr("Alignment"); target: root.node; propertyName: "alignment"
-        info: qsTr("How the text sits within the layer's box.")
+        info: qsTr("How the text sits within the node's box.")
         options: [
             { text: qsTr("Left"), value: "left" },
             { text: qsTr("Centre"), value: "center" },

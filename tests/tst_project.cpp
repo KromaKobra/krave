@@ -1,6 +1,7 @@
-#include "LayerModel.h"
+#include "NodeGraph.h"
 #include "Project.h"
 
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -8,6 +9,75 @@
 #include <QTest>
 
 using namespace mv;
+
+namespace {
+
+/// The v3 node object shape, so the hand-written fixtures below stay readable.
+QJsonObject jsonNode(int id, const QString &type, const QJsonObject &props = {})
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("id"), id);
+    obj.insert(QStringLiteral("type"), type);
+    obj.insert(QStringLiteral("props"), props);
+    return obj;
+}
+
+QJsonObject jsonEdge(int from, int to, const QString &port)
+{
+    QJsonObject obj;
+    obj.insert(QStringLiteral("from"), from);
+    obj.insert(QStringLiteral("to"), to);
+    obj.insert(QStringLiteral("port"), port);
+    return obj;
+}
+
+bool writeProject(const QString &path, int version, const QJsonArray &nodes,
+                  const QJsonArray &connections)
+{
+    QJsonObject root;
+    root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
+    root.insert(QStringLiteral("version"), version);
+    root.insert(QStringLiteral("nodes"), nodes);
+    root.insert(QStringLiteral("connections"), connections);
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    file.write(QJsonDocument(root).toJson());
+    return true;
+}
+
+/// A valid but otherwise empty graph: just the two essential nodes.
+///
+/// A default-constructed NodeGraph has no Output at all, which is a state no
+/// public path in the app produces -- newProject and load both make one. Tests
+/// that want a bare canvas to build on start here rather than from nothing.
+void minimalGraph(NodeGraph &graph)
+{
+    graph.resetNodes({NodeGraph::createNode(QStringLiteral("output"), 1),
+                      NodeGraph::createNode(QStringLiteral("audio"), 2)},
+                     {});
+}
+
+/// The set of edges in a graph, as "from>to.port" strings, for comparing by value.
+QSet<QString> edgeSet(const NodeGraph &graph)
+{
+    QSet<QString> result;
+    for (const Node *to : graph.nodes()) {
+        const QVector<PortSpec> &ports = to->spec().inputs;
+        for (int port = 0; port < ports.size(); ++port) {
+            if (const Node *from = to->input(port)) {
+                result.insert(QStringLiteral("%1>%2.%3")
+                                  .arg(from->nodeId())
+                                  .arg(to->nodeId())
+                                  .arg(ports.at(port).name));
+            }
+        }
+    }
+    return result;
+}
+
+} // namespace
 
 class TestProject : public QObject
 {
@@ -17,12 +87,16 @@ private Q_SLOTS:
     void roundTripPreservesEveryProperty();
     void projectFileContainsNoAudioPath();
     void rejectsNewerFormatVersion();
-    void layerOrderIsPreserved();
-    void spectrumConsumersAreDiscovered();
+    void rejectsV2Files();
+    void renderListFollowsTheVisualChain();
+    void audioSourcesAreDiscovered();
     void mirrorSpectrumIsSymmetric();
-    void mirroredOrientationBecomesToggle();
-    void v1ProjectsMigrateToProvider();
-    void modelReordersAndDeletes();
+    void nodeIdsAreStableAcrossSaveAndLoad();
+    void graphPositionsRoundTrip();
+    void connectionsRoundTripByPortName();
+    void loadingAFileWithoutAnOutputSynthesizesOne();
+    void loadingAFileWithAnInvalidConnectionDropsOnlyThatEdge();
+    void everyExampleProjectLoads();
 };
 
 void TestProject::roundTripPreservesEveryProperty()
@@ -31,14 +105,14 @@ void TestProject::roundTripPreservesEveryProperty()
     QVERIFY(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("round-trip.mvproj"));
 
-    LayerModel saveModel;
+    NodeGraph saveGraph;
     Project saveProject;
-    saveProject.setLayerModel(&saveModel);
+    saveProject.setGraph(&saveGraph);
     saveProject.newProject();
 
-    const int index = saveModel.addLayer(QStringLiteral("bars"));
-    QVERIFY(index >= 0);
-    auto *bars = qobject_cast<BarLayer *>(saveModel.at(index));
+    const int id = saveGraph.addNode(QStringLiteral("spectrum"), 0, 0);
+    QVERIFY(id > 0);
+    auto *bars = qobject_cast<SpectrumNode *>(saveGraph.nodeById(id));
     QVERIFY(bars);
 
     // Push every property off its default so a missed field cannot pass by luck.
@@ -66,26 +140,29 @@ void TestProject::roundTripPreservesEveryProperty()
     bars->setProperty("sizeH", 0.44);
     bars->setProperty("layerRotation", 22.0);
     bars->setProperty("layerVisible", false);
+    // graphX/graphY are covered by the meta-walk below for free, which is the
+    // point of declaring them as properties on Node rather than as plain members.
+    bars->setProperty("graphX", 412.0);
+    bars->setProperty("graphY", -96.5);
 
     QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
     QVERIFY(!saveProject.isModified());
 
-    LayerModel loadModel;
+    NodeGraph loadGraph;
     Project loadProject;
-    loadProject.setLayerModel(&loadModel);
-    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)),
-             qPrintable(loadProject.lastError()));
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
     QVERIFY(!loadProject.isModified());
 
-    QCOMPARE(loadModel.count(), saveModel.count());
+    QCOMPARE(loadGraph.count(), saveGraph.count());
 
-    auto *reloaded = qobject_cast<BarLayer *>(loadModel.at(index));
+    auto *reloaded = qobject_cast<SpectrumNode *>(loadGraph.nodeById(id));
     QVERIFY(reloaded);
 
     // Compare by walking the meta-object, so a property added later is covered
     // by this test automatically.
     const QMetaObject *meta = bars->metaObject();
-    for (int i = Layer::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
+    for (int i = Node::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
         const QMetaProperty prop = meta->property(i);
         if (!prop.isWritable() || !prop.isStored())
             continue;
@@ -95,6 +172,10 @@ void TestProject::roundTripPreservesEveryProperty()
                                      prop.read(reloaded).toString(),
                                      prop.read(bars).toString())));
     }
+
+    // The edge set is part of the document too, and nothing in the meta-walk
+    // covers it.
+    QCOMPARE(edgeSet(loadGraph), edgeSet(saveGraph));
 }
 
 void TestProject::projectFileContainsNoAudioPath()
@@ -103,11 +184,11 @@ void TestProject::projectFileContainsNoAudioPath()
     QVERIFY(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("no-audio.mvproj"));
 
-    LayerModel model;
+    NodeGraph graph;
     Project project;
-    project.setLayerModel(&model);
+    project.setGraph(&graph);
     project.newProject();
-    model.addLayer(QStringLiteral("bars"));
+    graph.addNode(QStringLiteral("spectrum"), 0, 0);
     QVERIFY(project.save(QUrl::fromLocalFile(path)));
 
     QFile file(path);
@@ -116,7 +197,7 @@ void TestProject::projectFileContainsNoAudioPath()
 
     // Projects are meant to be reusable templates: no track reference at all.
     // Checked precisely rather than by searching for "audio", which is also the
-    // audio provider layer's type name.
+    // audio node's type name.
     QVERIFY(!contents.contains("trackPath"));
     QVERIFY(!contents.contains("audioPath"));
     for (const char *ext : {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"})
@@ -126,8 +207,11 @@ void TestProject::projectFileContainsNoAudioPath()
 
     const QJsonObject root = QJsonDocument::fromJson(contents).object();
     QCOMPARE(root.value(QStringLiteral("version")).toInt(), Project::kFormatVersion);
-    QVERIFY(root.contains(QStringLiteral("layers")));
+    QVERIFY(root.contains(QStringLiteral("nodes")));
+    QVERIFY(root.contains(QStringLiteral("connections")));
     QVERIFY(root.contains(QStringLiteral("canvas")));
+    // The stack is gone; a file still claiming one would be a half-done migration.
+    QVERIFY(!root.contains(QStringLiteral("layers")));
 }
 
 void TestProject::rejectsNewerFormatVersion()
@@ -135,104 +219,117 @@ void TestProject::rejectsNewerFormatVersion()
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("future.mvproj"));
+    QVERIFY(writeProject(path, Project::kFormatVersion + 5, {}, {}));
+
+    NodeGraph graph;
+    Project project;
+    project.setGraph(&graph);
+
+    QVERIFY(!project.load(QUrl::fromLocalFile(path)));
+    QVERIFY(!project.lastError().isEmpty());
+}
+
+void TestProject::rejectsV2Files()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("legacy.mvproj"));
+
+    // A v2 file: an ordered "layers" array, no connections, typeId "bars".
+    QJsonObject bar;
+    bar.insert(QStringLiteral("type"), QStringLiteral("bars"));
+    bar.insert(QStringLiteral("props"), QJsonObject());
 
     QJsonObject root;
     root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
-    root.insert(QStringLiteral("version"), Project::kFormatVersion + 5);
-    root.insert(QStringLiteral("layers"), QJsonArray());
+    root.insert(QStringLiteral("version"), 2);
+    root.insert(QStringLiteral("layers"), QJsonArray{bar});
 
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(QJsonDocument(root).toJson());
     file.close();
 
-    LayerModel model;
+    NodeGraph graph;
     Project project;
-    project.setLayerModel(&model);
+    project.setGraph(&graph);
 
     QVERIFY(!project.load(QUrl::fromLocalFile(path)));
-    QVERIFY(!project.lastError().isEmpty());
+    // The error has to name the way out, or the user is simply stuck.
+    QVERIFY2(project.lastError().contains(QStringLiteral("migrate_v2_to_v3")),
+             qPrintable(project.lastError()));
 }
 
-void TestProject::layerOrderIsPreserved()
+void TestProject::renderListFollowsTheVisualChain()
 {
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("order.mvproj"));
+    NodeGraph graph;
+    minimalGraph(graph);
 
-    LayerModel model;
-    Project project;
-    project.setLayerModel(&model);
-    project.newProject();
-    model.clear();
+    // background -> text -> spectrum -> output. Built in an order that is NOT the
+    // draw order, so the list can only be right by following the edges.
+    const int spectrum = graph.addNode(QStringLiteral("spectrum"), 0, 0);
+    const int background = graph.addNode(QStringLiteral("background"), 0, 0);
+    const int text = graph.addNode(QStringLiteral("text"), 0, 0);
+    QVERIFY(spectrum > 0 && background > 0 && text > 0);
 
-    model.addLayer(QStringLiteral("background"));
-    model.addLayer(QStringLiteral("particles"));
-    model.addLayer(QStringLiteral("bars"));
-    model.addLayer(QStringLiteral("text"));
+    OutputNode *output = graph.outputNode();
+    QVERIFY(output);
 
-    // Give the particle layer non-default values too, so its properties are
-    // covered by the round-trip and not just its type.
-    auto *particles = qobject_cast<ParticleLayer *>(model.at(1));
-    QVERIFY(particles);
-    particles->setProperty("band", QStringLiteral("treble"));
-    particles->setProperty("reactiveRate", 777.0);
-    particles->setProperty("color", QColor(QStringLiteral("#12ab34")));
+    QVERIFY(graph.link(background, text, QStringLiteral("visual")));
+    QVERIFY(graph.link(text, spectrum, QStringLiteral("visual")));
+    QVERIFY(graph.link(spectrum, output->nodeId(), QStringLiteral("visual")));
 
-    QVERIFY(project.save(QUrl::fromLocalFile(path)));
+    const QVector<VisualNode *> drawn = graph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 3);
+    QCOMPARE(drawn.at(0)->nodeId(), background);
+    QCOMPARE(drawn.at(1)->nodeId(), text);
+    QCOMPARE(drawn.at(2)->nodeId(), spectrum);
 
-    LayerModel loaded;
-    Project loadProject;
-    loadProject.setLayerModel(&loaded);
-    QVERIFY(loadProject.load(QUrl::fromLocalFile(path)));
-
-    QCOMPARE(loaded.count(), 4);
-    QCOMPARE(loaded.at(0)->typeId(), QStringLiteral("background"));
-    QCOMPARE(loaded.at(1)->typeId(), QStringLiteral("particles"));
-    QCOMPARE(loaded.at(2)->typeId(), QStringLiteral("bars"));
-    QCOMPARE(loaded.at(3)->typeId(), QStringLiteral("text"));
-
-    QCOMPARE(loaded.at(1)->property("band").toString(), QStringLiteral("treble"));
-    QCOMPARE(loaded.at(1)->property("reactiveRate").toDouble(), 777.0);
-    QCOMPARE(loaded.at(1)->property("color").value<QColor>(), QColor(QStringLiteral("#12ab34")));
+    // The output is the root of the render, not a thing that gets rendered.
+    for (const VisualNode *node : drawn)
+        QVERIFY(node->nodeId() != output->nodeId());
+    QVERIFY(!qobject_cast<VisualNode *>(output));
 }
 
-void TestProject::spectrumConsumersAreDiscovered()
+void TestProject::audioSourcesAreDiscovered()
 {
-    LayerModel model;
-    model.clear();
+    NodeGraph graph;
+    graph.loadDefaults();
 
-    model.addLayer(QStringLiteral("audio"));
-    model.addLayer(QStringLiteral("background"));
-    model.addLayer(QStringLiteral("bars"));
-    model.addLayer(QStringLiteral("text"));
-    model.addLayer(QStringLiteral("particles"));
+    // The default project is audio -> separator -> spectrum, so both sources are
+    // live and the spectrum is not one of them: it is fed a frame, it does not
+    // run an FFT. Adding ten spectrum nodes costs no extra analysis.
+    const QVector<AudioSourceNode *> sources = graph.liveAudioSources();
+    QCOMPARE(sources.size(), 2);
 
-    // Since v2 the FFT is run for providers and particle layers only. Bar layers
-    // are fed from a provider, so adding ten of them costs no extra analysis.
-    const QVector<Layer *> consumers = model.spectrumLayers();
-    QCOMPARE(consumers.size(), 2);
-    QCOMPARE(consumers.at(0)->typeId(), QStringLiteral("audio"));
-    QCOMPARE(consumers.at(1)->typeId(), QStringLiteral("particles"));
+    QStringList types;
+    QSet<int> ids;
+    for (AudioSourceNode *source : sources) {
+        types.append(source->typeId());
+        // Ids key the analyzer map in SpectrumWorker, so uniqueness is much more
+        // load-bearing than it looks.
+        QVERIFY(!ids.contains(source->nodeId()));
+        ids.insert(source->nodeId());
+    }
+    types.sort();
+    QCOMPARE(types, QStringList({QStringLiteral("audio"), QStringLiteral("separator")}));
 
-    QCOMPARE(model.audioProviders().size(), 1);
-    QCOMPARE(model.barLayers().size(), 1);
-    QVERIFY(!model.barLayers().first()->needsSpectrum());
+    QCOMPARE(graph.spectrumNodes().size(), 1);
+    for (SpectrumNode *spectrum : graph.spectrumNodes())
+        QVERIFY(!qobject_cast<AudioSourceNode *>(spectrum));
 
-    // The provider conditions data but draws nothing.
-    QVERIFY(!model.audioProviders().first()->isVisual());
-    QVERIFY(model.barLayers().first()->isVisual());
-
-    // Each consumer analyzes under its own settings, keyed by a unique id.
-    QVERIFY(consumers.at(0)->layerId() != consumers.at(1)->layerId());
+    // The separator conditions data but draws nothing; the spectrum draws.
+    QVERIFY(graph.audioNode());
+    QVERIFY(!graph.audioNode()->isVisual());
+    QVERIFY(graph.spectrumNodes().first()->isVisual());
 }
 
 void TestProject::mirrorSpectrumIsSymmetric()
 {
-    LayerModel model;
-    model.clear();
-    model.addLayer(QStringLiteral("bars"));
-    auto *bars = qobject_cast<BarLayer *>(model.at(0));
+    NodeGraph graph;
+    minimalGraph(graph);
+    const int id = graph.addNode(QStringLiteral("spectrum"), 0, 0);
+    auto *bars = qobject_cast<SpectrumNode *>(graph.nodeById(id));
     QVERIFY(bars);
 
     SpectrumFrame frame;
@@ -276,125 +373,222 @@ void TestProject::mirrorSpectrumIsSymmetric()
     QVERIFY(sameAs(inner, {0.4, 0.3, 0.2, 0.1, 0.1, 0.2, 0.3, 0.4}));
     for (int i = 0; i < inner.size(); ++i)
         QCOMPARE(inner.at(i), inner.at(inner.size() - 1 - i));
+
+    // An unconnected audio input draws nothing rather than borrowing whichever
+    // separator happened to come first, which is what the stack used to do.
+    bars->clearFrame();
+    QCOMPARE(bars->barCount(), 0);
+    QCOMPARE(bars->bass(), 0.0);
 }
 
-void TestProject::mirroredOrientationBecomesToggle()
+void TestProject::nodeIdsAreStableAcrossSaveAndLoad()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("mirrored.mvproj"));
+    const QString path = dir.filePath(QStringLiteral("ids.mvproj"));
 
-    // "mirrored" was a third orientation before it became a toggle. Nothing
-    // validates the string, so without a fix-up it would load verbatim and
-    // leave the orientation control with no segment selected.
-    QJsonObject barProps;
-    barProps.insert(QStringLiteral("orientation"), QStringLiteral("mirrored"));
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
 
-    QJsonObject bar;
-    bar.insert(QStringLiteral("type"), QStringLiteral("bars"));
-    bar.insert(QStringLiteral("props"), barProps);
+    // Delete something first so the surviving ids are NOT 1..n in array order.
+    // Under the old model ids were renumbered from 1 on every load, which is the
+    // entire reason the hidden providerId only ever worked by coincidence.
+    const int doomed = saveGraph.addNode(QStringLiteral("text"), 0, 0);
+    const int kept = saveGraph.addNode(QStringLiteral("text"), 0, 0);
+    QVERIFY(saveGraph.removeNode(doomed));
+    QVERIFY(kept > doomed);
 
-    QJsonObject root;
-    root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
-    root.insert(QStringLiteral("version"), 2);
-    root.insert(QStringLiteral("layers"), QJsonArray{bar});
+    QList<int> before;
+    for (const Node *node : saveGraph.nodes())
+        before.append(node->nodeId());
 
-    QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly));
-    file.write(QJsonDocument(root).toJson());
-    file.close();
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
 
-    LayerModel model;
-    Project project;
-    project.setLayerModel(&model);
-    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
 
-    QCOMPARE(model.count(), 1);
-    QCOMPARE(model.at(0)->property("orientation").toString(), QStringLiteral("linear"));
-    QVERIFY(model.at(0)->property("mirrorBars").toBool());
+    QList<int> after;
+    for (const Node *node : loadGraph.nodes())
+        after.append(node->nodeId());
+
+    QCOMPARE(after, before);
+    QVERIFY(after.contains(kept));
+    QVERIFY(!after.contains(doomed));
+
+    // And a node added after the load must not collide with anything loaded.
+    const int fresh = loadGraph.addNode(QStringLiteral("text"), 0, 0);
+    QVERIFY(fresh > 0);
+    QVERIFY(!before.contains(fresh));
 }
 
-void TestProject::v1ProjectsMigrateToProvider()
+void TestProject::graphPositionsRoundTrip()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("legacy.mvproj"));
+    const QString path = dir.filePath(QStringLiteral("positions.mvproj"));
 
-    // A v1 file: analysis settings live on the bar layer, no provider exists.
-    QJsonObject barProps;
-    barProps.insert(QStringLiteral("name"), QStringLiteral("Old bars"));
-    barProps.insert(QStringLiteral("barCount"), 72);
-    barProps.insert(QStringLiteral("fftSize"), 4096);
-    barProps.insert(QStringLiteral("minHz"), 45.0);
-    barProps.insert(QStringLiteral("maxHz"), 15000.0);
-    barProps.insert(QStringLiteral("attackMs"), 12.0);
-    barProps.insert(QStringLiteral("decayMs"), 260.0);
-    barProps.insert(QStringLiteral("colorMode"), QStringLiteral("spectrum"));
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
+    saveGraph.autoLayout();
 
-    QJsonObject bar;
-    bar.insert(QStringLiteral("type"), QStringLiteral("bars"));
-    bar.insert(QStringLiteral("props"), barProps);
+    QHash<int, QPointF> placed;
+    for (const Node *node : saveGraph.nodes()) {
+        placed.insert(node->nodeId(), QPointF(node->property("graphX").toDouble(),
+                                              node->property("graphY").toDouble()));
+    }
+    // autoLayout must actually have moved something, or this proves nothing.
+    QVERIFY(std::any_of(placed.constBegin(), placed.constEnd(),
+                        [](const QPointF &p) { return p.x() != 0.0 || p.y() != 0.0; }));
 
-    QJsonObject root;
-    root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
-    root.insert(QStringLiteral("version"), 1);
-    root.insert(QStringLiteral("layers"), QJsonArray{bar});
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
 
-    QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly));
-    file.write(QJsonDocument(root).toJson());
-    file.close();
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
 
-    LayerModel model;
-    Project project;
-    project.setLayerModel(&model);
-    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
-
-    // A provider is synthesised, carrying the old analysis settings.
-    QCOMPARE(model.count(), 2);
-    QCOMPARE(model.at(0)->typeId(), QStringLiteral("audio"));
-    auto *provider = qobject_cast<AudioProviderLayer *>(model.at(0));
-    QVERIFY(provider);
-    QCOMPARE(provider->property("bandCount").toInt(), 72);
-    // v1's fftSize was a sample count; it becomes a window length in ms.
-    QCOMPARE(provider->property("windowMs").toDouble(), 4096 * 1000.0 / 48000.0);
-    QCOMPARE(provider->property("minHz").toDouble(), 45.0);
-    QCOMPARE(provider->property("maxHz").toDouble(), 15000.0);
-    QCOMPARE(provider->property("attackMs").toDouble(), 12.0);
-    QCOMPARE(provider->property("decayMs").toDouble(), 260.0);
-
-    // The bar layer keeps its visual settings and loses the analysis ones.
-    QCOMPARE(model.at(1)->typeId(), QStringLiteral("bars"));
-    QCOMPARE(model.at(1)->property("colorMode").toString(), QStringLiteral("spectrum"));
-    QCOMPARE(model.at(1)->property("name").toString(), QStringLiteral("Old bars"));
+    for (const Node *node : loadGraph.nodes()) {
+        QVERIFY(placed.contains(node->nodeId()));
+        const QPointF want = placed.value(node->nodeId());
+        QCOMPARE(node->property("graphX").toDouble(), want.x());
+        QCOMPARE(node->property("graphY").toDouble(), want.y());
+    }
 }
 
-void TestProject::modelReordersAndDeletes()
+void TestProject::connectionsRoundTripByPortName()
 {
-    LayerModel model;
-    model.clear();
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("edges.mvproj"));
 
-    model.addLayer(QStringLiteral("background"));
-    model.addLayer(QStringLiteral("bars"));
-    model.addLayer(QStringLiteral("text"));
-    QCOMPARE(model.count(), 3);
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
 
-    // Move the text layer to the bottom of the stack.
-    model.moveLayer(2, 0);
-    QCOMPARE(model.at(0)->typeId(), QStringLiteral("text"));
-    QCOMPARE(model.at(1)->typeId(), QStringLiteral("background"));
-    QCOMPARE(model.at(2)->typeId(), QStringLiteral("bars"));
+    // A second spectrum on the same separator: one output, two inputs. This is
+    // the relationship a layer stack could not express at all.
+    const int second = saveGraph.addNode(QStringLiteral("spectrum"), 0, 0);
+    SpectrumNode *first = saveGraph.spectrumNodes().first();
+    auto *separator = qobject_cast<AudioSourceNode *>(first->input(QStringLiteral("audio")));
+    QVERIFY(separator);
+    QVERIFY(saveGraph.link(separator->nodeId(), second, QStringLiteral("audio")));
+    QVERIFY(saveGraph.link(first->nodeId(), second, QStringLiteral("visual")));
+    QVERIFY(saveGraph.link(second, saveGraph.outputNode()->nodeId(), QStringLiteral("visual")));
 
-    model.removeLayer(1);
-    QCOMPARE(model.count(), 2);
-    QCOMPARE(model.at(0)->typeId(), QStringLiteral("text"));
-    QCOMPARE(model.at(1)->typeId(), QStringLiteral("bars"));
+    const QSet<QString> before = edgeSet(saveGraph);
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
 
-    // Layer ids must stay unique so the spectrum engine cannot cross wires.
-    QVERIFY(model.at(0)->layerId() != model.at(1)->layerId());
+    // The port is stored as a NAME, not an index, so reordering the port table
+    // would not silently reinterpret a file.
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    const QJsonArray written = root.value(QStringLiteral("connections")).toArray();
+    QCOMPARE(written.size(), before.size());
+    for (const QJsonValue &value : written) {
+        const QString port = value.toObject().value(QStringLiteral("port")).toString();
+        QVERIFY2(port == QLatin1String("visual") || port == QLatin1String("audio"),
+                 qPrintable(port));
+    }
 
-    model.removeLayer(99); // out of range, must be a no-op
-    QCOMPARE(model.count(), 2);
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
+    QCOMPARE(edgeSet(loadGraph), before);
+
+    // And the fan-out survived as a fan-out.
+    QCOMPARE(loadGraph.spectrumNodes().size(), 2);
+    const int sourceA = loadGraph.spectrumNodes().at(0)->sourceId(QStringLiteral("audio"));
+    const int sourceB = loadGraph.spectrumNodes().at(1)->sourceId(QStringLiteral("audio"));
+    QVERIFY(sourceA != 0);
+    QCOMPARE(sourceA, sourceB);
+}
+
+void TestProject::loadingAFileWithoutAnOutputSynthesizesOne()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("no-output.mvproj"));
+
+    // Neither essential node present. A project file that is slightly wrong should
+    // open and be fixable rather than refuse.
+    QVERIFY(writeProject(path, 3,
+                         {jsonNode(7, QStringLiteral("background"))},
+                         {}));
+
+    NodeGraph graph;
+    Project project;
+    project.setGraph(&graph);
+    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
+
+    QVERIFY(graph.outputNode());
+    QVERIFY(graph.audioNode());
+    QCOMPARE(graph.count(), 3);
+    // The synthesized nodes must not steal the id the file already used.
+    QVERIFY(graph.nodeById(7));
+    QVERIFY(graph.outputNode()->nodeId() != 7);
+    QVERIFY(graph.audioNode()->nodeId() != 7);
+    QVERIFY(graph.outputNode()->nodeId() != graph.audioNode()->nodeId());
+}
+
+void TestProject::loadingAFileWithAnInvalidConnectionDropsOnlyThatEdge()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("bad-edge.mvproj"));
+
+    const QJsonArray nodes{
+        jsonNode(1, QStringLiteral("output")),
+        jsonNode(2, QStringLiteral("audio")),
+        jsonNode(3, QStringLiteral("background")),
+    };
+    const QJsonArray edges{
+        jsonEdge(3, 1, QStringLiteral("visual")),  // fine
+        jsonEdge(2, 1, QStringLiteral("visual")),  // audio output into a visual input
+        jsonEdge(3, 1, QStringLiteral("nonsense")), // no such port
+        jsonEdge(3, 99, QStringLiteral("visual")),  // no such node
+    };
+    QVERIFY(writeProject(path, 3, nodes, edges));
+
+    NodeGraph graph;
+    Project project;
+    project.setGraph(&graph);
+    QTest::ignoreMessage(QtWarningMsg, "mv: dropping invalid connection 2 -> 1.visual");
+    QTest::ignoreMessage(QtWarningMsg, "mv: dropping invalid connection 3 -> 1.nonsense");
+    QTest::ignoreMessage(QtWarningMsg, "mv: dropping invalid connection 3 -> 99.visual");
+    QVERIFY2(project.load(QUrl::fromLocalFile(path)), qPrintable(project.lastError()));
+
+    // The good edge survived; the project was not lost over the bad ones.
+    QCOMPARE(edgeSet(graph), QSet<QString>{QStringLiteral("3>1.visual")});
+    QCOMPARE(graph.renderList()->nodes().size(), 1);
+}
+
+void TestProject::everyExampleProjectLoads()
+{
+    // The cheapest possible guard on the migration script's output: if a converted
+    // file does not open, or opens with nothing to draw, the conversion was wrong.
+    const QDir dir(QStringLiteral(MV_EXAMPLES_DIR));
+    const QStringList files = dir.entryList({QStringLiteral("*.mvproj")}, QDir::Files);
+    QVERIFY2(!files.isEmpty(), qPrintable(dir.absolutePath()));
+
+    for (const QString &name : files) {
+        NodeGraph graph;
+        Project project;
+        project.setGraph(&graph);
+        QVERIFY2(project.load(QUrl::fromLocalFile(dir.filePath(name))),
+                 qPrintable(name + QStringLiteral(": ") + project.lastError()));
+        QVERIFY2(!graph.renderList()->nodes().isEmpty(), qPrintable(name));
+        QVERIFY2(graph.outputNode(), qPrintable(name));
+        QVERIFY2(graph.audioNode(), qPrintable(name));
+    }
 }
 
 QTEST_MAIN(TestProject)

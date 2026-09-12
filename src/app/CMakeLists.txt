@@ -1,4 +1,4 @@
-# mvapp: the document model -- layer types, the stack and load/save.
+# mvapp: the document model -- node types, the graph, the flatten and load/save.
 #
 # Split out of the app target so the tests can link it rather than listing its
 # .cpp files one by one. That list drifted every time the model was split into
@@ -8,10 +8,11 @@
 # No Quick and no Multimedia here: AudioEngine, SpectrumEngine and
 # ExportController stay in the executable, so this library builds headless.
 add_library(mvapp STATIC
-    Layer.h            Layer.cpp
-    LayerModel.h       LayerModel.cpp
+    Node.h             Node.cpp
+    NodeGraph.h        NodeGraph.cpp
     NodePorts.h        NodePorts.cpp
     Project.h          Project.cpp
+    RenderList.h       RenderList.cpp
 )
 
 target_include_directories(mvapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -19,7 +20,7 @@ target_include_directories(mvapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(mvapp PUBLIC
     mvcore
     Qt6::Core
-    Qt6::Gui   # QColor on the layer properties
+    Qt6::Gui   # QColor on the node properties
     Qt6::Qml   # QQmlEngine::setObjectOwnership, Q_INVOKABLE registration
 )
 
@@ -39,15 +40,13 @@ set(app_qml_files
     qml/layers/BarLayerView.qml
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
-    qml/layers/ParticleLayerView.qml
     qml/panels/TopBar.qml
-    qml/panels/LayerListPanel.qml
+    qml/panels/NodeListPanel.qml
     qml/panels/CanvasStage.qml
     qml/panels/PropertyPanel.qml
-    qml/panels/inspectors/BarsInspector.qml
-    qml/panels/inspectors/AudioInspector.qml
+    qml/panels/inspectors/SpectrumInspector.qml
+    qml/panels/inspectors/SeparatorInspector.qml
     qml/panels/inspectors/TextInspector.qml
-    qml/panels/inspectors/ParticlesInspector.qml
     qml/panels/inspectors/BackgroundInspector.qml
     qml/panels/TimelinePanel.qml
     qml/panels/ExportDialog.qml
@@ -71,12 +70,12 @@ set(app_qml_files
     qml/controls/WaveformStrip.qml
 )
 
-# Design tokens, the icon set and the layer-type table. Registered as singletons
+# Design tokens, the icon set and the node-type table. Registered as singletons
 # so every QML file reads one instance of each rather than constructing its own.
 set(app_qml_singletons
     qml/Theme.qml
     qml/Icons.qml
-    qml/LayerTypes.qml
+    qml/NodeTypes.qml
 )
 
 list(APPEND app_qml_files ${app_qml_singletons})
@@ -93,17 +92,10 @@ foreach(qml_file IN LISTS app_qml_files)
     set_source_files_properties(${qml_file} PROPERTIES QT_RESOURCE_ALIAS ${qml_alias})
 endforeach()
 
-set_source_files_properties(assets/glowdot.png
-    PROPERTIES QT_RESOURCE_ALIAS assets/glowdot.png)
-
 qt_add_qml_module(krave
     URI krave
     VERSION 1.0
     QML_FILES ${app_qml_files}
-    RESOURCES
-        # ImageParticle's built-in glowdot resource does not load in this Qt
-        # build, so the particle sprite ships with the app instead.
-        assets/glowdot.png
 )
 
 # Blend-mode fragment shaders. Compiled to .qsb and placed alongside the QML in
@@ -133,10 +125,10 @@ target_link_libraries(krave PRIVATE
     Qt6::Multimedia
 )
 
-# QtQuick.Particles is a QML-only import for the particle layer, and
-# QtQuick.Shapes is one for the icon set; naming them here ensures the plugins are
-# deployed alongside the app.
-find_package(Qt6 6.8 QUIET COMPONENTS QuickParticles QuickShapes)
+# QtQuick.Shapes is a QML-only import -- the icon set, the bar fan wedges and the
+# graph's edges all use it; naming it here ensures the plugin is deployed
+# alongside the app.
+find_package(Qt6 6.8 QUIET COMPONENTS QuickShapes)
 
 target_compile_definitions(krave PRIVATE
     MV_VERSION="${PROJECT_VERSION}"

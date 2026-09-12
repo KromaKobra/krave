@@ -1,7 +1,7 @@
 #include "ExportController.h"
 
 #include "AudioEngine.h"
-#include "LayerModel.h"
+#include "NodeGraph.h"
 #include "Project.h"
 #include "SpectrumEngine.h"
 
@@ -77,11 +77,11 @@ ExportController::~ExportController()
         cancel();
 }
 
-void ExportController::setContext(QQmlEngine *engine, LayerModel *layers, AudioEngine *audio,
+void ExportController::setContext(QQmlEngine *engine, NodeGraph *graph, AudioEngine *audio,
                                   SpectrumEngine *spectrum, Project *project)
 {
     m_qmlEngine = engine;
-    m_layers = layers;
+    m_graph = graph;
     m_audio = audio;
     m_spectrum = spectrum;
     m_project = project;
@@ -150,8 +150,12 @@ bool ExportController::buildScene()
         return false;
     }
 
-    // Bind to the very same layer objects the preview uses.
-    m_rootItem->setProperty("layers", QVariant::fromValue(m_layers));
+    // Bind to the very same RenderList -- and so the very same Node objects --
+    // that the preview draws. Two live scene graphs over one model: the graph panel
+    // is unreachable while the modal export dialog is up, and it is additionally
+    // disabled on `exportController.exporting`, because a topology change here
+    // would beginResetModel a model two Repeaters are iterating.
+    m_rootItem->setProperty("layers", QVariant::fromValue(m_graph->renderList()));
     if (m_project)
         m_rootItem->setProperty("canvasColor", m_project->canvasColor());
 
@@ -309,7 +313,7 @@ bool ExportController::start(const QUrl &outputUrl)
     if (m_exporting)
         return false;
 
-    if (!m_qmlEngine || !m_layers || !m_audio || !m_spectrum) {
+    if (!m_qmlEngine || !m_graph || !m_audio || !m_spectrum) {
         fail(tr("The export controller has not been wired up."));
         return false;
     }

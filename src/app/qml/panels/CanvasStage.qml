@@ -101,7 +101,7 @@ Item {
 
                     VisualizerCanvas {
                         anchors.fill: parent
-                        layers: layerModel
+                        layers: nodeGraph.renderList
                         canvasColor: project.canvasColor
                     }
 
@@ -164,8 +164,8 @@ Item {
             font.pixelSize: Theme.fontSizeMicro
             text: {
                 const size = project.canvasWidth + " × " + project.canvasHeight
-                const layer = layerModel.selectedLayer
-                return layer ? qsTr("%1 · %2 selected").arg(size).arg(layer.name) : size
+                const node = nodeGraph.selectedNode
+                return node ? qsTr("%1 · %2 selected").arg(size).arg(node.name) : size
             }
         }
     }

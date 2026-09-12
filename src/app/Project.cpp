@@ -1,5 +1,5 @@
 #include "Project.h"
-#include "LayerModel.h"
+#include "NodeGraph.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -12,23 +12,23 @@
 namespace mv {
 namespace {
 
-/// Write every writable, stored property a Layer subclass declares.
+/// Write every writable, stored property a Node subclass declares.
 ///
-/// Starting at Layer's property offset skips QObject's own `objectName`; the loop
+/// Starting at Node's property offset skips QObject's own `objectName`; the loop
 /// runs to the concrete class's property count so subclass properties come along
-/// for free. Read-only properties (typeId, layerId, bands) are skipped because
-/// they are either derived or live data.
-QJsonObject serializeLayer(const Layer *layer)
+/// for free. Read-only properties (typeId, nodeId, bands) are skipped because they
+/// are either derived or live data.
+QJsonObject serializeNode(const Node *node)
 {
     QJsonObject props;
-    const QMetaObject *meta = layer->metaObject();
+    const QMetaObject *meta = node->metaObject();
 
-    for (int i = Layer::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
+    for (int i = Node::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
         const QMetaProperty prop = meta->property(i);
         if (!prop.isWritable() || !prop.isStored())
             continue;
 
-        const QVariant value = prop.read(layer);
+        const QVariant value = prop.read(node);
         if (value.typeId() == QMetaType::QColor)
             props.insert(QString::fromUtf8(prop.name()),
                          value.value<QColor>().name(QColor::HexArgb));
@@ -37,103 +37,27 @@ QJsonObject serializeLayer(const Layer *layer)
     }
 
     QJsonObject obj;
-    obj.insert(QStringLiteral("type"), layer->typeId());
+    obj.insert(QStringLiteral("id"), node->nodeId());
+    obj.insert(QStringLiteral("type"), node->typeId());
     obj.insert(QStringLiteral("props"), props);
     return obj;
 }
 
-/// Fold retired property values into the ones that replaced them.
-///
-/// This runs for every file rather than behind a format-version gate: the values
-/// it fixes were legal in more than one version, so a gate would need a version
-/// bump that only makes new files unreadable by older builds.
-QJsonObject migrateLegacyValues(const QString &type, QJsonObject props)
-{
-    // "mirrored" used to be an orientation. It is now linear plus the two-sided
-    // bar toggle, which radial can have too.
-    if (type == QLatin1String("bars")
-        && props.value(QStringLiteral("orientation")).toString() == QLatin1String("mirrored")) {
-        props.insert(QStringLiteral("orientation"), QStringLiteral("linear"));
-        props.insert(QStringLiteral("mirrorBars"), true);
-    }
-    return props;
-}
-
-Layer *deserializeLayer(const QJsonObject &obj)
+Node *deserializeNode(const QJsonObject &obj)
 {
     const QString type = obj.value(QStringLiteral("type")).toString();
-    Layer *layer = LayerModel::createLayer(type);
-    if (!layer)
+    const int id = obj.value(QStringLiteral("id")).toInt();
+    Node *node = NodeGraph::createNode(type, id);
+    if (!node)
         return nullptr;
 
-    const QJsonObject props =
-        migrateLegacyValues(type, obj.value(QStringLiteral("props")).toObject());
+    const QJsonObject props = obj.value(QStringLiteral("props")).toObject();
     for (auto it = props.constBegin(); it != props.constEnd(); ++it) {
         // setProperty converts through the property system, so a "#ff4488"
         // string lands correctly in a QColor property.
-        layer->setProperty(it.key().toUtf8().constData(), it.value().toVariant());
+        node->setProperty(it.key().toUtf8().constData(), it.value().toVariant());
     }
-    return layer;
-}
-
-/// Rewrite a v1 layer array in v2 shape.
-///
-/// v1 kept fftSize/minHz/maxHz/floorDb/ceilingDb/scalingCurve/gamma/attack/decay
-/// and barCount on every bar layer. v2 moves them to an AudioProviderLayer. The
-/// first bar layer's settings become the provider, since a v1 project had no way
-/// to express more than one analysis configuration anyway.
-QJsonArray migrateFromV1(const QJsonArray &layers)
-{
-    static const QStringList moved = {
-        QStringLiteral("minHz"),        QStringLiteral("maxHz"),
-        QStringLiteral("floorDb"),      QStringLiteral("ceilingDb"),
-        QStringLiteral("scalingCurve"), QStringLiteral("gamma"),
-        QStringLiteral("attackMs"),     QStringLiteral("decayMs"),
-    };
-
-    QJsonObject providerProps;
-    providerProps.insert(QStringLiteral("name"), QStringLiteral("Audio provider"));
-    bool haveSettings = false;
-
-    QJsonArray out;
-    for (const QJsonValue &value : layers) {
-        QJsonObject layer = value.toObject();
-        if (layer.value(QStringLiteral("type")).toString() != QLatin1String("bars")) {
-            out.append(layer);
-            continue;
-        }
-
-        QJsonObject props = layer.value(QStringLiteral("props")).toObject();
-        if (!haveSettings) {
-            for (const QString &key : moved) {
-                if (props.contains(key))
-                    providerProps.insert(key, props.value(key));
-            }
-            if (props.contains(QStringLiteral("barCount")))
-                providerProps.insert(QStringLiteral("bandCount"),
-                                     props.value(QStringLiteral("barCount")));
-            // v1 stored the window as a sample count; the provider now takes
-            // milliseconds. 48 kHz is the app's fixed internal rate.
-            if (props.contains(QStringLiteral("fftSize"))) {
-                const double samples = props.value(QStringLiteral("fftSize")).toDouble(2048);
-                providerProps.insert(QStringLiteral("windowMs"), samples * 1000.0 / 48000.0);
-            }
-            haveSettings = true;
-        }
-        for (const QString &key : moved)
-            props.remove(key);
-        props.remove(QStringLiteral("barCount"));
-        props.remove(QStringLiteral("fftSize"));
-
-        layer.insert(QStringLiteral("props"), props);
-        out.append(layer);
-    }
-
-    QJsonObject provider;
-    provider.insert(QStringLiteral("type"), QStringLiteral("audio"));
-    provider.insert(QStringLiteral("props"), providerProps);
-    out.prepend(provider);
-    return out;
+    return node;
 }
 
 } // namespace
@@ -143,11 +67,13 @@ Project::Project(QObject *parent)
 {
 }
 
-void Project::setLayerModel(LayerModel *model)
+void Project::setGraph(NodeGraph *graph)
 {
-    m_model = model;
-    if (m_model) {
-        connect(m_model, &LayerModel::layersChanged, this, [this] { setModified(true); });
+    m_graph = graph;
+    if (m_graph) {
+        // graphChanged, not topologyChanged: a property edit and a moved node are
+        // both edits, and both should mark the document dirty.
+        connect(m_graph, &NodeGraph::graphChanged, this, [this] { setModified(true); });
     }
 }
 
@@ -182,8 +108,8 @@ void Project::setError(const QString &message)
 
 bool Project::save(const QUrl &url)
 {
-    if (!m_model) {
-        setError(tr("No layer model is attached."));
+    if (!m_graph) {
+        setError(tr("No node graph is attached."));
         return false;
     }
 
@@ -198,15 +124,33 @@ bool Project::save(const QUrl &url)
     canvas.insert(QStringLiteral("height"), m_canvasHeight);
     canvas.insert(QStringLiteral("color"), m_canvasColor.name(QColor::HexArgb));
 
-    QJsonArray layers;
-    for (const Layer *layer : m_model->layers())
-        layers.append(serializeLayer(layer));
+    QJsonArray nodes;
+    QJsonArray connections;
+    for (const Node *node : m_graph->nodes()) {
+        nodes.append(serializeNode(node));
+
+        // Edges are written as a flat list keyed by port NAME rather than as a
+        // nested "inputs" object per node: it is readable, diffable, and survives
+        // the port table being reordered.
+        const QVector<PortSpec> &ports = node->spec().inputs;
+        for (int port = 0; port < ports.size(); ++port) {
+            const Node *source = node->input(port);
+            if (!source)
+                continue;
+            QJsonObject edge;
+            edge.insert(QStringLiteral("from"), source->nodeId());
+            edge.insert(QStringLiteral("to"), node->nodeId());
+            edge.insert(QStringLiteral("port"), ports.at(port).name);
+            connections.append(edge);
+        }
+    }
 
     QJsonObject root;
     root.insert(QStringLiteral("format"), QStringLiteral("music-visualizer-project"));
     root.insert(QStringLiteral("version"), kFormatVersion);
     root.insert(QStringLiteral("canvas"), canvas);
-    root.insert(QStringLiteral("layers"), layers);
+    root.insert(QStringLiteral("nodes"), nodes);
+    root.insert(QStringLiteral("connections"), connections);
 
     // QSaveFile so a failed write cannot destroy the previous project file.
     QSaveFile file(path);
@@ -235,8 +179,8 @@ bool Project::saveCurrent()
 
 bool Project::load(const QUrl &url)
 {
-    if (!m_model) {
-        setError(tr("No layer model is attached."));
+    if (!m_graph) {
+        setError(tr("No node graph is attached."));
         return false;
     }
 
@@ -264,42 +208,60 @@ bool Project::load(const QUrl &url)
                      .arg(kFormatVersion));
         return false;
     }
+    if (version < kFormatVersion) {
+        setError(tr("%1 is an older project format (%2); this build reads format %3 "
+                    "only. Convert it with tools/migrate_v2_to_v3.py, which writes a "
+                    "new file and leaves the original alone.")
+                     .arg(QFileInfo(path).fileName())
+                     .arg(version)
+                     .arg(kFormatVersion));
+        return false;
+    }
 
     const QJsonObject canvas = root.value(QStringLiteral("canvas")).toObject();
     m_canvasWidth = canvas.value(QStringLiteral("width")).toInt(1920);
     m_canvasHeight = canvas.value(QStringLiteral("height")).toInt(1080);
     m_canvasColor = QColor(canvas.value(QStringLiteral("color")).toString(QStringLiteral("#0b0b12")));
 
-    QJsonArray array = root.value(QStringLiteral("layers")).toArray();
-    if (version < 2)
-        array = migrateFromV1(array);
-
-    QVector<Layer *> layers;
-    for (const QJsonValue &value : array) {
-        if (Layer *layer = deserializeLayer(value.toObject()))
-            layers.append(layer);
+    // Two passes: create every node with the id from the file, then resolve the
+    // edge list against those ids. resetNodes validates each edge and drops the
+    // ones that fail, so one bad connection does not lose the project.
+    QVector<Node *> nodes;
+    for (const QJsonValue &value : root.value(QStringLiteral("nodes")).toArray()) {
+        if (Node *node = deserializeNode(value.toObject()))
+            nodes.append(node);
     }
 
-    m_model->resetLayers(layers);
+    QVector<NodeEdge> edges;
+    for (const QJsonValue &value : root.value(QStringLiteral("connections")).toArray()) {
+        const QJsonObject obj = value.toObject();
+        NodeEdge edge;
+        edge.fromId = obj.value(QStringLiteral("from")).toInt();
+        edge.toId = obj.value(QStringLiteral("to")).toInt();
+        edge.port = obj.value(QStringLiteral("port")).toString();
+        edges.append(edge);
+    }
+
+    m_graph->resetNodes(nodes, edges);
 
     setError({});
     setFilePath(path);
     Q_EMIT canvasChanged();
     Q_EMIT loaded();
-    // resetLayers marked the document dirty; a freshly loaded file is not.
+    // resetNodes marked the document dirty; a freshly loaded file is not.
     setModified(false);
     return true;
 }
 
 void Project::newProject()
 {
-    if (!m_model)
+    if (!m_graph)
         return;
 
     m_canvasWidth = 1920;
     m_canvasHeight = 1080;
     m_canvasColor = QColor(QStringLiteral("#0b0b12"));
-    m_model->loadDefaults();
+    m_graph->loadDefaults();
 
     setFilePath({});
     setError({});

@@ -11,8 +11,8 @@
 //   frame        - spans the canvas
 //     group      - carries visibility, opacity and blend mode; canvas-sized, so
 //                  the blend texture never clips content that leaves the box
-//       canvas   - `canvasContent`: things that must be free to draw anywhere,
-//                  e.g. particles that fly out of their emitter band
+//       canvas   - `canvasContent`: things that must be free to draw anywhere
+//                  rather than be clipped to the node's own box
 //       box      - `content` (default): the layer's placed, rotatable rectangle
 //
 // The backing object is called `layerData`, not `layer`: QQuickItem already

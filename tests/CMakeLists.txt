@@ -8,6 +8,10 @@ add_test(NAME tst_fft COMMAND tst_fft)
 # into more files cannot break this target.
 qt_add_executable(tst_project tst_project.cpp)
 target_link_libraries(tst_project PRIVATE mvapp Qt6::Test)
+# The smoke test loads every file in examples/, which is the cheapest guard there
+# is on the output of tools/migrate_v2_to_v3.py.
+target_compile_definitions(tst_project PRIVATE
+    MV_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../examples")
 set_target_properties(tst_project PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME tst_project COMMAND tst_project)
 

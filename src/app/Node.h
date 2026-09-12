@@ -1,5 +1,7 @@
 #pragma once
 
+#include "NodePorts.h"
+
 #include <SpectrumAnalyzer.h>
 
 #include <QColor>
@@ -7,10 +9,13 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
+#include <QVector>
 
 namespace mv {
 
-/// Base class for everything stacked on the visualizer canvas.
+class NodeGraph;
+
+/// Base class for everything in the node graph.
 ///
 /// Properties are declared with Q_PROPERTY(... MEMBER ...) on purpose: it gives
 /// QML two-way bindings and lets Project.cpp serialize by walking the meta-object,
@@ -19,14 +24,108 @@ namespace mv {
 /// They all share one `changed` NOTIFY signal. QML re-evaluates the affected
 /// bindings on it, and the slight over-invalidation is far cheaper than
 /// hand-writing a signal per property.
-class Layer : public QObject
+///
+/// ------------------------------------------------------------------------
+/// An AUDIO EDGE SELECTS A SOURCE. IT DOES NOT CARRY NUMBERS.
+/// ------------------------------------------------------------------------
+///
+/// This is the one thing about the graph that is not guessable from its shape. A
+/// SeparatorNode physically needs PCM to run an FFT over, not its input's band
+/// values -- so its audio input names WHICH audio to analyse, and
+/// AudioSourceNode::audioRoot() walks that chain back to the AudioNode holding
+/// the samples. A separator never reads its immediate input's bands.
+///
+/// Two corollaries:
+///
+///   - Chained separators do NOT cascade. Two in series produce two independent
+///     analyses of the same PCM, each with its own band count and smoothing.
+///     That is allowed -- forbidding it would be a special case in an otherwise
+///     uniform type system -- but it is not a two-stage filter, and nobody
+///     should expect the second to refine the first.
+///
+///   - The AudioNode is itself just an analyzer, with bandCount 1 over the full
+///     range. "One bar = overall volume" therefore falls out of the type system
+///     rather than needing a node of its own.
+class Node : public QObject
 {
     Q_OBJECT
 
     Q_PROPERTY(QString typeId READ typeId CONSTANT)
-    Q_PROPERTY(int layerId READ layerId CONSTANT)
+    Q_PROPERTY(int nodeId READ nodeId NOTIFY nodeIdChanged)
 
     Q_PROPERTY(QString name MEMBER m_name NOTIFY changed)
+
+    /// Position in graph space. MEMBER so the drag handler writes it directly and
+    /// Project.cpp's meta-walk persists it with no extra code -- the same bargain
+    /// the rest of the property set already makes.
+    Q_PROPERTY(qreal graphX MEMBER m_graphX NOTIFY changed)
+    Q_PROPERTY(qreal graphY MEMBER m_graphY NOTIFY changed)
+
+public:
+    explicit Node(QObject *parent = nullptr);
+
+    virtual QString typeId() const = 0;
+
+    /// This type's port table entry. Never null: a type with no spec cannot be
+    /// constructed, and tst_graph pins that the two lists agree.
+    const NodeTypeSpec &spec() const;
+
+    int nodeId() const { return m_nodeId; }
+
+    QString name() const { return m_name; }
+    void setName(const QString &n) { m_name = n; Q_EMIT changed(); }
+
+    /// True when this node has a delegate in VisualizerCanvas. Derived from the
+    /// port table rather than overridden per class -- the table is the one place
+    /// that decides, because the flatten and the editor read it too.
+    bool isVisual() const { return spec().visual; }
+
+    int inputCount() const;
+    Node *input(int port) const;
+    Node *input(const QString &portName) const;
+    /// Index of `portName` among this type's inputs, or -1.
+    int portIndex(const QString &portName) const;
+
+    /// nodeId of whatever feeds `portName`, or 0 if nothing does.
+    Q_INVOKABLE int sourceId(const QString &portName) const;
+
+Q_SIGNALS:
+    void changed();
+    void nodeIdChanged();
+
+protected:
+    QString m_name;
+    qreal m_graphX = 0.0;
+    qreal m_graphY = 0.0;
+
+private:
+    // Only the graph may rewire. In memory an input is a SLOT, so "one input, one
+    // source" is structurally impossible to violate -- there is nowhere to put a
+    // second source, the deletion cascade is one pass nulling matching pointers,
+    // and the flatten is a pointer walk with no lookups. QML and the inspector
+    // cannot reach these at all, so they cannot construct an illegal state.
+    //
+    // On disk it is a flat edge list keyed by port NAME instead, which is
+    // readable, diffable, and survives the port table being reordered.
+    friend class NodeGraph;
+    void setNodeId(int id);
+    void setInput(int port, Node *source);
+
+    /// Sized from spec().inputs, lazily: spec() is virtual and so cannot be read
+    /// from this constructor.
+    QVector<Node *> &slots_() const;
+
+    mutable QVector<Node *> m_inputs;
+    int m_nodeId = 0;
+};
+
+/// A node that draws. Placement, compositing and visibility live here rather than
+/// on Node, because a separator has no position and an output has no opacity --
+/// and when they did, the inspector showed seven dead controls for them.
+class VisualNode : public Node
+{
+    Q_OBJECT
+
     Q_PROPERTY(bool layerVisible MEMBER m_layerVisible NOTIFY changed)
     Q_PROPERTY(qreal layerOpacity MEMBER m_layerOpacity NOTIFY changed)
     Q_PROPERTY(QString blendMode MEMBER m_blendMode NOTIFY changed)
@@ -40,38 +139,12 @@ class Layer : public QObject
     Q_PROPERTY(qreal layerRotation MEMBER m_layerRotation NOTIFY changed)
 
 public:
-    explicit Layer(QObject *parent = nullptr);
+    explicit VisualNode(QObject *parent = nullptr);
 
-    virtual QString typeId() const = 0;
-
-    int layerId() const { return m_layerId; }
-    void setLayerId(int id) { m_layerId = id; }
-
-    QString name() const { return m_name; }
-    void setName(const QString &n) { m_name = n; Q_EMIT changed(); }
     bool layerVisible() const { return m_layerVisible; }
     qreal layerOpacity() const { return m_layerOpacity; }
 
-    /// True when this layer consumes spectrum data and must be analyzed each frame.
-    virtual bool needsSpectrum() const { return false; }
-
-    /// False for layers that only condition data and draw nothing, so the canvas
-    /// knows not to look for a delegate.
-    virtual bool isVisual() const { return true; }
-
-    /// Analyzer settings for this layer. Each spectrum-consuming layer gets its
-    /// own analyzer, so band counts and smoothing are genuinely per-layer.
-    virtual SpectrumParams analysisParams() const { return {}; }
-
-    /// Receive this frame's analysis. Called on the GUI thread.
-    virtual void applyFrame(const SpectrumFrame &) {}
-
-Q_SIGNALS:
-    void changed();
-
 protected:
-    int m_layerId = 0;
-    QString m_name;
     bool m_layerVisible = true;
     qreal m_layerOpacity = 1.0;
     QString m_blendMode = QStringLiteral("normal");
@@ -82,17 +155,80 @@ protected:
     qreal m_layerRotation = 0.0;
 };
 
-/// Conditions the audio into the numbers the bars actually draw.
+/// A node that owns a SpectrumAnalyzer and produces a frame each tick.
 ///
-/// This exists as its own layer because "what the spectrum really is" and "what
+/// SpectrumEngine schedules one analysis per live source, so the FFT cost scales
+/// with the number of sources rather than with the number of things drawing them.
+class AudioSourceNode : public Node
+{
+    Q_OBJECT
+
+    Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
+
+public:
+    explicit AudioSourceNode(QObject *parent = nullptr);
+
+    /// Analyzer settings for this node. Each source gets its own analyzer, so
+    /// band counts and smoothing are genuinely per-node.
+    virtual SpectrumParams analysisParams() const = 0;
+
+    /// Receive this frame's analysis. Called on the GUI thread.
+    virtual void applyFrame(const SpectrumFrame &frame);
+
+    const SpectrumFrame &frame() const { return m_frame; }
+    const QList<qreal> &bands() const { return m_bands; }
+
+    /// Walk the audio-input chain to the node that owns the PCM.
+    ///
+    /// Nullptr means "not plugged into anything", which is how the engine knows
+    /// to skip this source entirely. An AudioNode is its own root.
+    const Node *audioRoot() const;
+
+Q_SIGNALS:
+    void bandsChanged();
+
+protected:
+    SpectrumFrame m_frame;
+    QList<qreal> m_bands;
+};
+
+/// The track itself, as a one-band analysis over the full frequency range.
+///
+/// Deliberately exposes `level` and NOT bass/mid/treble: with a single band the
+/// centre frequency lands in exactly one of those three buckets and the other two
+/// read 0.0, which would be a trap rather than an API.
+class AudioNode : public AudioSourceNode
+{
+    Q_OBJECT
+
+    Q_PROPERTY(qreal level READ level NOTIFY bandsChanged)
+
+public:
+    explicit AudioNode(QObject *parent = nullptr);
+
+    QString typeId() const override { return QStringLiteral("audio"); }
+
+    SpectrumParams analysisParams() const override;
+    void applyFrame(const SpectrumFrame &frame) override;
+
+    /// Overall loudness, 0..1.
+    qreal level() const { return m_level; }
+
+private:
+    qreal m_level = 0.0;
+};
+
+/// Conditions the audio into the numbers the spectrum nodes actually draw.
+///
+/// This exists as its own node because "what the spectrum really is" and "what
 /// looks good" are different problems. A faithful FFT readout jitters every
 /// frame, slopes off steeply toward the treble, and never sits still. All of the
-/// shaping that fixes that lives here, in one place, shared by every bar layer
-/// bound to it -- which also means the FFT runs once per provider rather than
-/// once per bar layer.
+/// shaping that fixes that lives here, in one place, shared by every spectrum
+/// node wired to it -- which also means the FFT runs once per separator rather
+/// than once per spectrum.
 ///
 /// It draws nothing; VisualizerCanvas has no delegate for it.
-class AudioProviderLayer : public Layer
+class SeparatorNode : public AudioSourceNode
 {
     Q_OBJECT
 
@@ -158,29 +294,21 @@ class AudioProviderLayer : public Layer
     Q_PROPERTY(qreal floorLevel MEMBER m_floorLevel NOTIFY changed)
 
     // --- Live data ---------------------------------------------------------
-    Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
     Q_PROPERTY(qreal bass READ bass NOTIFY bandsChanged)
     Q_PROPERTY(qreal mid READ mid NOTIFY bandsChanged)
     Q_PROPERTY(qreal treble READ treble NOTIFY bandsChanged)
 
 public:
-    explicit AudioProviderLayer(QObject *parent = nullptr);
+    explicit SeparatorNode(QObject *parent = nullptr);
 
-    QString typeId() const override { return QStringLiteral("audio"); }
-    bool needsSpectrum() const override { return true; }
-    bool isVisual() const override { return false; }
+    QString typeId() const override { return QStringLiteral("separator"); }
 
     SpectrumParams analysisParams() const override;
     void applyFrame(const SpectrumFrame &frame) override;
 
-    const QList<qreal> &bands() const { return m_bands; }
     qreal bass() const { return m_bass; }
     qreal mid() const { return m_mid; }
     qreal treble() const { return m_treble; }
-    const SpectrumFrame &frame() const { return m_frame; }
-
-Q_SIGNALS:
-    void bandsChanged();
 
 private:
     int m_bandCount = 48;
@@ -211,8 +339,6 @@ private:
     qreal m_spatialSmoothing = 0.15;
     qreal m_floorLevel = 0.0;
 
-    SpectrumFrame m_frame;
-    QList<qreal> m_bands;
     qreal m_bass = 0.0;
     qreal m_mid = 0.0;
     qreal m_treble = 0.0;
@@ -221,14 +347,10 @@ private:
 /// Frequency-reactive EQ bars: the primary visualizer type.
 ///
 /// Carries only how the bars LOOK. Everything about how the audio is turned into
-/// numbers lives on the AudioProviderLayer this one points at.
-class BarLayer : public Layer
+/// numbers lives on the separator wired to its audio input.
+class SpectrumNode : public VisualNode
 {
     Q_OBJECT
-
-    /// layerId of the AudioProviderLayer feeding this one; 0 means "the first
-    /// provider in the stack", which is what a single-provider project wants.
-    Q_PROPERTY(int providerId MEMBER m_providerId NOTIFY changed)
 
     // --- Shape -------------------------------------------------------------
     Q_PROPERTY(qreal barWidthRatio MEMBER m_barWidthRatio NOTIFY changed)
@@ -237,9 +359,7 @@ class BarLayer : public Layer
     Q_PROPERTY(qreal maxHeight MEMBER m_maxHeight NOTIFY changed)
 
     // --- Placement ---------------------------------------------------------
-    /// "linear" or "radial". Older projects also stored "mirrored"; that look is
-    /// now `orientation == "linear"` plus `mirrorBars`, and Project.cpp rewrites
-    /// the old value on load.
+    /// "linear" or "radial".
     Q_PROPERTY(QString orientation MEMBER m_orientation NOTIFY changed)
     /// Two-sided bars: each one grows both ways from its base line rather than
     /// only into the layer. Works in either orientation -- linear grows up and
@@ -275,7 +395,7 @@ class BarLayer : public Layer
     /// Extra brightness applied in proportion to a bar's level, 0 = off.
     Q_PROPERTY(qreal reactiveBrightness MEMBER m_reactiveBrightness NOTIFY changed)
 
-    // --- Live data, copied from the provider each frame ---------------------
+    // --- Live data, copied from the separator each frame --------------------
     /// Already reflected when `mirrorSpectrum` is set, so the view just draws it.
     Q_PROPERTY(QList<qreal> bands READ bands NOTIFY bandsChanged)
     Q_PROPERTY(int barCount READ barCount NOTIFY bandsChanged)
@@ -289,9 +409,9 @@ class BarLayer : public Layer
     Q_PROPERTY(qreal treble READ treble NOTIFY bandsChanged)
 
 public:
-    explicit BarLayer(QObject *parent = nullptr);
+    explicit SpectrumNode(QObject *parent = nullptr);
 
-    QString typeId() const override { return QStringLiteral("bars"); }
+    QString typeId() const override { return QStringLiteral("spectrum"); }
 
     const QList<qreal> &bands() const { return m_bands; }
     int barCount() const { return int(m_bands.size()); }
@@ -300,17 +420,20 @@ public:
     qreal mid() const { return m_mid; }
     qreal treble() const { return m_treble; }
 
-    int providerId() const { return m_providerId; }
     bool mirrorSpectrum() const { return m_mirrorSpectrum; }
 
-    /// Take a provider's frame, applying spectrum mirroring if enabled.
+    /// Take a separator's frame, applying spectrum mirroring if enabled.
     void takeFrame(const SpectrumFrame &frame);
+
+    /// Drop to nothing, for an unconnected audio input. Wiring is explicit and
+    /// visible now, so an unconnected spectrum draws nothing rather than quietly
+    /// borrowing whichever separator happened to come first.
+    void clearFrame();
 
 Q_SIGNALS:
     void bandsChanged();
 
 private:
-    int m_providerId = 0;
     int m_inactiveEdgeBars = 0;
     bool m_mirrorSpectrum = false;
     bool m_bassInner = false;
@@ -337,82 +460,23 @@ private:
     qreal m_treble = 0.0;
 };
 
-/// Flat colour or image behind everything else.
-class BackgroundLayer : public Layer
+/// Flat colour behind everything else. An Image node comes later.
+class BackgroundNode : public VisualNode
 {
     Q_OBJECT
 
     Q_PROPERTY(QColor color MEMBER m_color NOTIFY changed)
-    Q_PROPERTY(QString imageSource MEMBER m_imageSource NOTIFY changed)
-    /// "stretch", "fit" or "crop"
-    Q_PROPERTY(QString fillMode MEMBER m_fillMode NOTIFY changed)
 
 public:
-    explicit BackgroundLayer(QObject *parent = nullptr);
+    explicit BackgroundNode(QObject *parent = nullptr);
     QString typeId() const override { return QStringLiteral("background"); }
 
 private:
     QColor m_color = QColor(QStringLiteral("#0b0b12"));
-    QString m_imageSource;
-    QString m_fillMode = QStringLiteral("crop");
-};
-
-/// Particle burst driven by one frequency band.
-///
-/// Carries its own analyzer settings (see Layer::analysisParams) so its
-/// reactivity is independent of any bar layer on the canvas.
-class ParticleLayer : public Layer
-{
-    Q_OBJECT
-
-    /// Which energy drives emission: "bass", "mid" or "treble".
-    Q_PROPERTY(QString band MEMBER m_band NOTIFY changed)
-    /// Particles per second when the band is silent.
-    Q_PROPERTY(qreal baseRate MEMBER m_baseRate NOTIFY changed)
-    /// Extra particles per second at full band energy.
-    Q_PROPERTY(qreal reactiveRate MEMBER m_reactiveRate NOTIFY changed)
-    Q_PROPERTY(QColor color MEMBER m_color NOTIFY changed)
-    Q_PROPERTY(qreal particleSize MEMBER m_particleSize NOTIFY changed)
-    Q_PROPERTY(qreal lifeSpan MEMBER m_lifeSpan NOTIFY changed)
-    Q_PROPERTY(qreal speed MEMBER m_speed NOTIFY changed)
-    /// Emission direction in degrees; 270 is straight up.
-    Q_PROPERTY(qreal angle MEMBER m_angle NOTIFY changed)
-    Q_PROPERTY(qreal angleSpread MEMBER m_angleSpread NOTIFY changed)
-    Q_PROPERTY(qreal gravity MEMBER m_gravity NOTIFY changed)
-
-    Q_PROPERTY(qreal level READ level NOTIFY levelChanged)
-
-public:
-    explicit ParticleLayer(QObject *parent = nullptr);
-
-    QString typeId() const override { return QStringLiteral("particles"); }
-    bool needsSpectrum() const override { return true; }
-    SpectrumParams analysisParams() const override;
-    void applyFrame(const SpectrumFrame &frame) override;
-
-    /// Energy of the selected band, 0..1.
-    qreal level() const { return m_level; }
-
-Q_SIGNALS:
-    void levelChanged();
-
-private:
-    QString m_band = QStringLiteral("bass");
-    qreal m_baseRate = 0.0;
-    qreal m_reactiveRate = 240.0;
-    QColor m_color = QColor(QStringLiteral("#4cc9f0"));
-    qreal m_particleSize = 14.0;
-    qreal m_lifeSpan = 1600.0;
-    qreal m_speed = 220.0;
-    qreal m_angle = 270.0;
-    qreal m_angleSpread = 40.0;
-    qreal m_gravity = 90.0;
-
-    qreal m_level = 0.0;
 };
 
 /// Static text, e.g. the track title.
-class TextLayer : public Layer
+class TextNode : public VisualNode
 {
     Q_OBJECT
 
@@ -426,7 +490,7 @@ class TextLayer : public Layer
     Q_PROPERTY(QString alignment MEMBER m_alignment NOTIFY changed)
 
 public:
-    explicit TextLayer(QObject *parent = nullptr);
+    explicit TextNode(QObject *parent = nullptr);
     QString typeId() const override { return QStringLiteral("text"); }
 
 private:
@@ -436,6 +500,20 @@ private:
     bool m_bold = true;
     QColor m_color = QColor(QStringLiteral("#ffffff"));
     QString m_alignment = QStringLiteral("center");
+};
+
+/// The root of the render. Exactly one exists and it cannot be deleted.
+///
+/// Walking its visual input backwards produces the draw order, which is the whole
+/// reason layering needs no array index any more. It is NOT a VisualNode, so it
+/// never enters the render list itself.
+class OutputNode : public Node
+{
+    Q_OBJECT
+
+public:
+    explicit OutputNode(QObject *parent = nullptr);
+    QString typeId() const override { return QStringLiteral("output"); }
 };
 
 } // namespace mv
