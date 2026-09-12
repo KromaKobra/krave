@@ -37,7 +37,16 @@ QtObject {
     readonly property string bars: "M5.5 13 V19 M9.5 8.4 V19 M13.5 5 V19 M17.5 10.6 V19"
     readonly property string textT: "M5.6 6.6 V4.8 H18.4 V6.6 M12 4.8 V19.2 M9 19.2 H15"
     readonly property string sparkle: "M12 3.8 L13.7 10.3 L20.2 12 L13.7 13.7 L12 20.2 L10.3 13.7 L3.8 12 L10.3 10.3 Z"
+    /// A framed picture with a horizon and a sun: the Image node.
     readonly property string image: "M3.8 5.6 H20.2 V18.4 H3.8 Z M3.8 15.6 L9 10.6 L12.8 14 M12.8 14 L15.7 11.4 L20.2 15.4 M16.9 8.7 A1.3 1.3 0 1 1 14.3 8.7 A1.3 1.3 0 1 1 16.9 8.7 Z"
+    /// A plain swatch: the Background node is a flat colour and nothing else.
+    readonly property string fill: "M4.4 4.4 H19.6 V19.6 H4.4 Z M4.4 12 H19.6"
+    /// Two boxes converging into one below them: the Merge node's two inputs
+    /// meeting on a single output.
+    readonly property string merge: "M3.4 3.9 H9.6 V8.5 H3.4 Z M14.4 3.9 H20.6 V8.5 H14.4 Z M6.5 8.5 V10.6 C6.5 12.4 12 12.4 12 14.2 M17.5 8.5 V10.6 C17.5 12.4 12 12.4 12 14.2 M8.9 15.4 H15.1 V20 H8.9 Z"
+    /// A box with a corner handle and a rotation arc above it: the Transform
+    /// node moves, scales and turns whatever feeds it.
+    readonly property string transform: "M4.4 9.6 H14.4 V19.6 H4.4 Z M14.4 19.6 H19.6 V14.4 M17.2 17.2 L19.6 19.6 M9 6.6 A6 6 0 0 1 19.6 8.4 M19.6 4.9 V8.6 H16"
 
     // ------------------------------------------------------------- interface
     readonly property string plus: "M12 5.4 V18.6 M5.4 12 H18.6"

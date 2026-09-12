@@ -8,24 +8,26 @@ namespace {
 
 /// Port ORDER is layout order: inputs run left to right along a node's top edge.
 ///
-/// For a future Merge node it is also compositing order -- port 0 is the bottom
-/// of the stack -- which is why RenderList walks the inputs in index order rather
-/// than by name.
+/// It is also compositing order -- port 0 is the bottom of the stack -- which is
+/// why RenderList walks the inputs in index order rather than by name, and why
+/// Merge's `background` port must come first.
 const QVector<NodeTypeSpec> &table()
 {
     static const QVector<NodeTypeSpec> specs = [] {
         QVector<NodeTypeSpec> t;
 
-        const auto visualIn = [](bool required = false) {
+        const auto visualIn = [](const QString &name = QStringLiteral("visual"),
+                                 const QString &label = QObject::tr("Visual"),
+                                 bool required = false) {
             PortSpec p;
-            p.name = QStringLiteral("visual");
+            p.name = name;
             p.kind = PortKind::Visual;
             p.accepts = {PortKind::Visual};
             p.stacked = true;
             // Normally optional: a visual input with nothing in it just means this
             // node is the bottom of the chain. The Output is the exception.
             p.required = required;
-            p.label = QObject::tr("Visual");
+            p.label = label;
             return p;
         };
         const auto audioIn = [] {
@@ -46,7 +48,8 @@ const QVector<NodeTypeSpec> &table()
         // gets drawn, and walking that input backwards produces the draw order.
         NodeTypeSpec output;
         output.typeId = QStringLiteral("output");
-        output.inputs = {visualIn(/*required=*/true)};
+        output.inputs = {visualIn(QStringLiteral("visual"), QObject::tr("Visual"),
+                                 /*required=*/true)};
         output.essential = true;
         t.append(output);
 
@@ -88,6 +91,35 @@ const QVector<NodeTypeSpec> &table()
         text.hasOutput = true;
         text.visual = true;
         t.append(text);
+
+        // A picture from disk. No visual input of its own: stacking one thing
+        // over another is what Merge is for, and giving every visual type a
+        // pass-through input is what made the graph a chain in the first place.
+        NodeTypeSpec image;
+        image.typeId = QStringLiteral("image");
+        image.hasOutput = true;
+        image.visual = true;
+        t.append(image);
+
+        // The branch point. `background` is index 0 and therefore ends up
+        // furthest back in the draw list, and leftmost on the card's top edge.
+        //
+        // Neither input is required: a half-wired merge is a pass-through, not a
+        // mistake. See the PortSpec::required doc.
+        NodeTypeSpec merge;
+        merge.typeId = QStringLiteral("merge");
+        merge.inputs = {visualIn(QStringLiteral("background"), QObject::tr("Background")),
+                        visualIn(QStringLiteral("foreground"), QObject::tr("Foreground"))};
+        merge.hasOutput = true;
+        t.append(merge);
+
+        // Moves, scales and rotates everything upstream of it as one unit. Draws
+        // nothing itself, so `visual` stays false -- see TransformNode.
+        NodeTypeSpec transform;
+        transform.typeId = QStringLiteral("transform");
+        transform.inputs = {visualIn()};
+        transform.hasOutput = true;
+        t.append(transform);
 
         return t;
     }();

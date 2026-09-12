@@ -33,6 +33,8 @@ Item {
             // The role is "layerObject" rather than "layer" because QQuickItem
             // declares a FINAL `layer` property that a delegate cannot shadow.
             required property var layerObject
+            /// The transform nodes enclosing this layer, outermost first.
+            required property var layerTransforms
             required property int index
 
             anchors.fill: parent
@@ -47,13 +49,17 @@ Item {
                 case "spectrum": return barsComponent
                 case "background": return backgroundComponent
                 case "text": return textComponent
+                case "image": return imageComponent
                 // Only visual nodes reach a RenderList at all, so there is
-                // nothing here for audio, separator or output.
+                // nothing here for audio, separator, merge, transform or output.
                 default: return null
                 }
             }
 
-            onLoaded: item.layerData = layerLoader.layerObject
+            onLoaded: {
+                item.layerData = layerLoader.layerObject
+                item.layerTransforms = layerLoader.layerTransforms
+            }
         }
     }
 
@@ -70,5 +76,10 @@ Item {
     Component {
         id: textComponent
         TextLayerView {}
+    }
+
+    Component {
+        id: imageComponent
+        ImageLayerView {}
     }
 }

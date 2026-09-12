@@ -94,6 +94,9 @@ private Q_SLOTS:
     void nodeIdsAreStableAcrossSaveAndLoad();
     void graphPositionsRoundTrip();
     void connectionsRoundTripByPortName();
+    void imageNodesRoundTripTheirSourceAndCrop();
+    void transformNodesRoundTripTheirPlacement();
+    void aMergesTwoEdgesSurviveAsDistinctPorts();
     void loadingAFileWithoutAnOutputSynthesizesOne();
     void loadingAFileWithAnInvalidConnectionDropsOnlyThatEdge();
     void everyExampleProjectLoads();
@@ -510,6 +513,158 @@ void TestProject::connectionsRoundTripByPortName()
     const int sourceB = loadGraph.spectrumNodes().at(1)->sourceId(QStringLiteral("audio"));
     QVERIFY(sourceA != 0);
     QCOMPARE(sourceA, sourceB);
+}
+
+void TestProject::imageNodesRoundTripTheirSourceAndCrop()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("image.mvproj"));
+
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
+
+    const int id = saveGraph.addNode(QStringLiteral("image"), 0, 0);
+    QVERIFY(id > 0);
+    Node *image = saveGraph.nodeById(id);
+    QVERIFY(image);
+
+    // Paths are stored absolute, as the file dialog hands them over.
+    const QString source = QStringLiteral("file:///home/someone/pictures/cover art.png");
+    image->setProperty("source", source);
+    image->setProperty("fillMode", QStringLiteral("fit"));
+    // All four off their defaults, and none of them equal to another, so a
+    // transposed pair cannot pass.
+    image->setProperty("cropX", 0.11);
+    image->setProperty("cropY", 0.22);
+    image->setProperty("cropW", 0.33);
+    image->setProperty("cropH", 0.44);
+
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
+
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
+
+    Node *reloaded = loadGraph.nodeById(id);
+    QVERIFY(reloaded);
+    QCOMPARE(reloaded->typeId(), QStringLiteral("image"));
+    QCOMPARE(reloaded->property("source").toString(), source);
+    QCOMPARE(reloaded->property("fillMode").toString(), QStringLiteral("fit"));
+    QCOMPARE(reloaded->property("cropX").toDouble(), 0.11);
+    QCOMPARE(reloaded->property("cropY").toDouble(), 0.22);
+    QCOMPARE(reloaded->property("cropW").toDouble(), 0.33);
+    QCOMPARE(reloaded->property("cropH").toDouble(), 0.44);
+}
+
+void TestProject::transformNodesRoundTripTheirPlacement()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("transform.mvproj"));
+
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
+
+    const int id = saveGraph.addNode(QStringLiteral("transform"), 0, 0);
+    QVERIFY(id > 0);
+    Node *transform = saveGraph.nodeById(id);
+    QVERIFY(transform);
+
+    transform->setProperty("offsetX", -0.25);
+    transform->setProperty("offsetY", 0.4);
+    transform->setProperty("scaleX", 1.75);
+    transform->setProperty("scaleY", 0.6);
+    transform->setProperty("rotation", -33.0);
+    transform->setProperty("pivotX", 0.2);
+    transform->setProperty("pivotY", 0.8);
+
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
+
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
+
+    Node *reloaded = loadGraph.nodeById(id);
+    QVERIFY(reloaded);
+    QCOMPARE(reloaded->typeId(), QStringLiteral("transform"));
+
+    // Walked rather than listed, so a property added to TransformNode later is
+    // covered here without anyone remembering to come back.
+    const QMetaObject *meta = transform->metaObject();
+    for (int i = Node::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
+        const QMetaProperty prop = meta->property(i);
+        if (!prop.isWritable() || !prop.isStored())
+            continue;
+        QVERIFY2(prop.read(reloaded) == prop.read(transform),
+                 qPrintable(QStringLiteral("property '%1' differs: %2 vs %3")
+                                .arg(QString::fromUtf8(prop.name()),
+                                     prop.read(reloaded).toString(),
+                                     prop.read(transform).toString())));
+    }
+}
+
+void TestProject::aMergesTwoEdgesSurviveAsDistinctPorts()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("merge.mvproj"));
+
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
+
+    const int back = saveGraph.addNode(QStringLiteral("background"), 0, 0);
+    const int front = saveGraph.addNode(QStringLiteral("text"), 0, 0);
+    const int merge = saveGraph.addNode(QStringLiteral("merge"), 0, 0);
+    QVERIFY(back > 0 && front > 0 && merge > 0);
+
+    QVERIFY(saveGraph.link(back, merge, QStringLiteral("background")));
+    QVERIFY(saveGraph.link(front, merge, QStringLiteral("foreground")));
+    QVERIFY(saveGraph.link(merge, saveGraph.outputNode()->nodeId(),
+                           QStringLiteral("visual")));
+
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
+
+    // Both edges are on disk under their own port names. Two edges into one node
+    // is a shape the format has never had to carry before, and collapsing them
+    // (or writing an index) would silently lose the compositing order.
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    QStringList intoMerge;
+    for (const QJsonValue &value : root.value(QStringLiteral("connections")).toArray()) {
+        const QJsonObject edge = value.toObject();
+        if (edge.value(QStringLiteral("to")).toInt() == merge)
+            intoMerge.append(edge.value(QStringLiteral("port")).toString());
+    }
+    intoMerge.sort();
+    QCOMPARE(intoMerge, QStringList({QStringLiteral("background"),
+                                     QStringLiteral("foreground")}));
+
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
+    QCOMPARE(edgeSet(loadGraph), edgeSet(saveGraph));
+
+    // And the two arms came back the right way round, not merely both present.
+    Node *reloadedMerge = loadGraph.nodeById(merge);
+    QVERIFY(reloadedMerge);
+    QCOMPARE(reloadedMerge->sourceId(QStringLiteral("background")), back);
+    QCOMPARE(reloadedMerge->sourceId(QStringLiteral("foreground")), front);
+
+    const QVector<VisualNode *> drawn = loadGraph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 2);
+    QCOMPARE(drawn.at(0)->nodeId(), back);
+    QCOMPARE(drawn.at(1)->nodeId(), front);
 }
 
 void TestProject::loadingAFileWithoutAnOutputSynthesizesOne()

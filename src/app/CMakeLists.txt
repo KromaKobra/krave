@@ -40,6 +40,7 @@ set(app_qml_files
     qml/layers/BarLayerView.qml
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
+    qml/layers/ImageLayerView.qml
     qml/panels/TopBar.qml
     qml/panels/NodeGraphPanel.qml
     qml/graph/GraphCanvas.qml
@@ -52,6 +53,8 @@ set(app_qml_files
     qml/panels/inspectors/SeparatorInspector.qml
     qml/panels/inspectors/TextInspector.qml
     qml/panels/inspectors/BackgroundInspector.qml
+    qml/panels/inspectors/ImageInspector.qml
+    qml/panels/inspectors/TransformInspector.qml
     qml/panels/TimelinePanel.qml
     qml/panels/ExportDialog.qml
     qml/controls/AppButton.qml

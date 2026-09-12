@@ -6,14 +6,14 @@
     },
     "connections": [
         {
+            "from": 5,
+            "port": "visual",
+            "to": 1
+        },
+        {
             "from": 2,
             "port": "audio",
             "to": 3
-        },
-        {
-            "from": 3,
-            "port": "audio",
-            "to": 5
         },
         {
             "from": 4,
@@ -21,9 +21,9 @@
             "to": 5
         },
         {
-            "from": 5,
-            "port": "visual",
-            "to": 1
+            "from": 3,
+            "port": "audio",
+            "to": 5
         }
     ],
     "format": "music-visualizer-project",
@@ -40,7 +40,7 @@
         {
             "id": 2,
             "props": {
-                "graphX": 40,
+                "graphX": 120,
                 "graphY": 40,
                 "name": "Audio"
             },
@@ -61,8 +61,8 @@
                 "floorLevel": 0,
                 "gamma": 0.35,
                 "gateDb": 0,
-                "graphX": 40,
-                "graphY": 190,
+                "graphX": 128,
+                "graphY": 200,
                 "hzLinearFactor": 1,
                 "linearFloor": 0,
                 "linearGain": 0.45,
@@ -85,8 +85,8 @@
             "props": {
                 "blendMode": "normal",
                 "color": "#ff121220",
-                "graphX": 264,
-                "graphY": 40,
+                "graphX": 0,
+                "graphY": -56,
                 "layerOpacity": 1,
                 "layerRotation": 0,
                 "layerVisible": true,
@@ -111,7 +111,7 @@
                 "colorMode": "solid",
                 "cornerRadius": 3.5,
                 "graphX": 40,
-                "graphY": 340,
+                "graphY": 344,
                 "growUpward": true,
                 "innerRadius": 0.35,
                 "layerOpacity": 1,

@@ -51,6 +51,10 @@ private Q_SLOTS:
     void renderListIgnoresPropertyChanges();
     void renderListSkipsUnreachableNodes();
     void renderListDrawsASharedSubgraphTwice();
+    void mergeDrawsItsBackgroundArmFirst();
+    void aCycleThroughAMergesSecondInputIsRefused();
+    void transformsAccumulateOutermostFirst();
+    void organizingNodesNeverAppearInTheRenderList();
     void nodeIdsAreNotReusedAfterDeletion();
     void unconnectedSeparatorsAreNotAnalyzed();
     void chainedSeparatorsBothResolveToTheSameAudioRoot();
@@ -89,6 +93,8 @@ void TestGraph::portTableCoversEveryNodeType()
         QStringLiteral("output"),    QStringLiteral("audio"),
         QStringLiteral("separator"), QStringLiteral("background"),
         QStringLiteral("spectrum"),  QStringLiteral("text"),
+        QStringLiteral("image"),     QStringLiteral("merge"),
+        QStringLiteral("transform"),
     };
     QCOMPARE(seen, expected);
 
@@ -192,6 +198,13 @@ void TestGraph::onlyDataDependenciesAreRequired()
     QCOMPARE(requiredPorts(QStringLiteral("spectrum")), QStringList{QStringLiteral("audio")});
     // Text over nothing is a perfectly ordinary title card.
     QCOMPARE(requiredPorts(QStringLiteral("text")), QStringList());
+    // A half-wired merge is a pass-through, not a mistake -- flagging it would
+    // mean a warning ring on every merge the moment it is dropped on the canvas.
+    QCOMPARE(requiredPorts(QStringLiteral("merge")), QStringList());
+    // And a transform over nothing simply transforms nothing.
+    QCOMPARE(requiredPorts(QStringLiteral("transform")), QStringList());
+    // The image has no inputs at all; stacking is Merge's job.
+    QCOMPARE(requiredPorts(QStringLiteral("image")), QStringList());
 }
 
 void TestGraph::portKindNamesRoundTrip()
@@ -424,19 +437,22 @@ void TestGraph::flattenSurvivesACycleBuiltByHand()
     Node *nodeB = graph.nodeById(b);
 
     // The sane case first, so the guard below is not passing for the wrong reason.
-    QVector<VisualNode *> out;
+    QVector<RenderList::Entry> out;
     QSet<const Node *> onPath;
-    RenderList::flatten(nodeB, out, onPath);
+    QVector<Node *> stack;
+    RenderList::flatten(nodeB, out, onPath, stack);
     QCOMPARE(out.size(), 2);
     QVERIFY(onPath.isEmpty()); // the walk leaves the path set as it found it
+    QVERIFY(stack.isEmpty()); // and leaves the transform stack as it found it too
 
     // Re-entered on the path: terminate, warn, contribute nothing.
-    QVector<VisualNode *> again;
+    QVector<RenderList::Entry> again;
     QSet<const Node *> reentered{nodeA};
+    QVector<Node *> againStack;
     QTest::ignoreMessage(QtWarningMsg,
                          qPrintable(QStringLiteral("mv: cycle in the visual chain at node %1")
                                         .arg(a)));
-    RenderList::flatten(nodeA, again, reentered);
+    RenderList::flatten(nodeA, again, reentered, againStack);
     QVERIFY(again.isEmpty());
 
     // rebuild() over the real graph terminates and produces the chain.
@@ -536,22 +552,149 @@ void TestGraph::renderListDrawsASharedSubgraphTwice()
     // `onPath` is a PATH set, not a global visited set, so it breaks cycles
     // without deduplicating legitimate reuse -- a subgraph reached by two stacked
     // inputs is meant to be drawn once per path.
-    //
-    // Unreachable until there is a node with two stacked visual inputs (a Merge),
-    // because every visual type today has exactly one. Written now so the intent
-    // is recorded where it will be read.
-    QEXPECT_FAIL("", "needs a Merge node with two stacked visual inputs", Abort);
-    bool haveTwoStackedVisualInputs = false;
-    for (const NodeTypeSpec &spec : allNodeTypes()) {
-        int stacked = 0;
-        for (const PortSpec &port : spec.inputs) {
-            if (port.stacked)
-                ++stacked;
-        }
-        if (stacked >= 2)
-            haveTwoStackedVisualInputs = true;
-    }
-    QVERIFY(haveTwoStackedVisualInputs);
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int background = graph.addNode(QStringLiteral("background"), 0, 0);
+    const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
+    QVERIFY(background > 0 && merge > 0);
+
+    // One node into BOTH of the merge's inputs: a diamond, not a cycle.
+    QVERIFY(graph.link(background, merge, QStringLiteral("background")));
+    QVERIFY(graph.link(background, merge, QStringLiteral("foreground")));
+    QVERIFY(graph.link(merge, graph.outputNode()->nodeId(), QStringLiteral("visual")));
+
+    const QVector<VisualNode *> drawn = graph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 2);
+    QCOMPARE(drawn.at(0)->nodeId(), background);
+    QCOMPARE(drawn.at(1)->nodeId(), background);
+}
+
+void TestGraph::mergeDrawsItsBackgroundArmFirst()
+{
+    // Port index IS compositing order, and `background` is index 0. This is the
+    // whole of Merge's behaviour -- there is no code on the class at all.
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int back = graph.addNode(QStringLiteral("background"), 0, 0);
+    const int front = graph.addNode(QStringLiteral("text"), 0, 0);
+    const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
+    QVERIFY(back > 0 && front > 0 && merge > 0);
+
+    QVERIFY(graph.link(back, merge, QStringLiteral("background")));
+    QVERIFY(graph.link(front, merge, QStringLiteral("foreground")));
+    QVERIFY(graph.link(merge, graph.outputNode()->nodeId(), QStringLiteral("visual")));
+
+    QVector<VisualNode *> drawn = graph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 2);
+    QCOMPARE(drawn.at(0)->nodeId(), back);
+    QCOMPARE(drawn.at(1)->nodeId(), front);
+
+    // Swap the two edges and the order flips -- which is what makes the two
+    // ports meaningfully different rather than just differently named.
+    QVERIFY(graph.link(front, merge, QStringLiteral("background")));
+    QVERIFY(graph.link(back, merge, QStringLiteral("foreground")));
+
+    drawn = graph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 2);
+    QCOMPARE(drawn.at(0)->nodeId(), front);
+    QCOMPARE(drawn.at(1)->nodeId(), back);
+}
+
+void TestGraph::aCycleThroughAMergesSecondInputIsRefused()
+{
+    // Merge is the first type with two stacked visual inputs, so it is also the
+    // first that could close a visual loop through a port the old chain never
+    // had. canLink walks every input port, so this needs no special case -- but
+    // "needs no special case" is exactly the kind of claim worth pinning.
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
+    const int text = graph.addNode(QStringLiteral("text"), 0, 0);
+    QVERIFY(merge > 0 && text > 0);
+
+    QVERIFY(graph.link(merge, text, QStringLiteral("visual")));
+
+    // text is downstream of merge, so feeding it back into EITHER input closes
+    // a loop.
+    QVERIFY(!graph.canLink(text, merge, QStringLiteral("background")));
+    QVERIFY(!graph.canLink(text, merge, QStringLiteral("foreground")));
+    QVERIFY(!graph.link(text, merge, QStringLiteral("foreground")));
+
+    // And a merge cannot feed itself.
+    QVERIFY(!graph.canLink(merge, merge, QStringLiteral("background")));
+}
+
+void TestGraph::transformsAccumulateOutermostFirst()
+{
+    // A transform applies to its whole upstream subgraph, and the list stays
+    // flat: each drawn node just records which transforms enclose it. Order
+    // matters -- matrices do not commute -- and the recursion descends from the
+    // Output, so the outermost transform must be first.
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int inner = graph.addNode(QStringLiteral("transform"), 0, 0);
+    const int outer = graph.addNode(QStringLiteral("transform"), 0, 0);
+    const int under = graph.addNode(QStringLiteral("background"), 0, 0);
+    const int sibling = graph.addNode(QStringLiteral("text"), 0, 0);
+    const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
+    QVERIFY(inner > 0 && outer > 0 && under > 0 && sibling > 0 && merge > 0);
+
+    // under -> inner -> outer -> merge.background, and sibling straight into
+    // merge.foreground, so the two arms differ only in what encloses them.
+    QVERIFY(graph.link(under, inner, QStringLiteral("visual")));
+    QVERIFY(graph.link(inner, outer, QStringLiteral("visual")));
+    QVERIFY(graph.link(outer, merge, QStringLiteral("background")));
+    QVERIFY(graph.link(sibling, merge, QStringLiteral("foreground")));
+    QVERIFY(graph.link(merge, graph.outputNode()->nodeId(), QStringLiteral("visual")));
+
+    const QVector<RenderList::Entry> entries = graph.renderList()->entries();
+    QCOMPARE(entries.size(), 2);
+
+    QCOMPARE(entries.at(0).node->nodeId(), under);
+    QCOMPARE(entries.at(0).transforms.size(), 2);
+    QCOMPARE(entries.at(0).transforms.at(0)->nodeId(), outer);
+    QCOMPARE(entries.at(0).transforms.at(1)->nodeId(), inner);
+
+    // The sibling arm is untouched: a transform is not a global setting.
+    QCOMPARE(entries.at(1).node->nodeId(), sibling);
+    QVERIFY(entries.at(1).transforms.isEmpty());
+}
+
+void TestGraph::organizingNodesNeverAppearInTheRenderList()
+{
+    // Merge, Transform and the Output shape the draw list without being drawn.
+    // If any of them were a VisualNode it would land in the list and the canvas
+    // would try to find a delegate for it.
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
+    const int transform = graph.addNode(QStringLiteral("transform"), 0, 0);
+    const int image = graph.addNode(QStringLiteral("image"), 0, 0);
+    QVERIFY(merge > 0 && transform > 0 && image > 0);
+
+    QVERIFY(graph.link(image, merge, QStringLiteral("background")));
+    QVERIFY(graph.link(merge, transform, QStringLiteral("visual")));
+    QVERIFY(graph.link(transform, graph.outputNode()->nodeId(), QStringLiteral("visual")));
+
+    const QVector<VisualNode *> drawn = graph.renderList()->nodes();
+    QCOMPARE(drawn.size(), 1);
+    QCOMPARE(drawn.first()->nodeId(), image);
+
+    // Stated as the class-level fact it rests on, not just as an absence from
+    // this one list.
+    QVERIFY(!qobject_cast<VisualNode *>(graph.nodeById(merge)));
+    QVERIFY(!qobject_cast<VisualNode *>(graph.nodeById(transform)));
+    QVERIFY(qobject_cast<VisualNode *>(graph.nodeById(image)));
+
+    // The image is enclosed by the transform even with a merge in between: the
+    // stack follows the recursion, not the immediate parent.
+    QCOMPARE(graph.renderList()->entries().first().transforms.size(), 1);
+    QCOMPARE(graph.renderList()->entries().first().transforms.first()->nodeId(), transform);
 }
 
 void TestGraph::nodeIdsAreNotReusedAfterDeletion()

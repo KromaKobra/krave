@@ -52,8 +52,31 @@ QtObject {
             typeId: "background",
             title: qsTr("Background"),
             label: qsTr("background"),
-            icon: Icons.image,
+            icon: Icons.fill,
             hint: qsTr("A flat colour behind everything")
+        },
+        {
+            typeId: "image",
+            title: qsTr("Image"),
+            label: qsTr("image"),
+            icon: Icons.image,
+            hint: qsTr("A picture from a file, cropped how you like")
+        },
+        {
+            typeId: "merge",
+            title: qsTr("Merge"),
+            label: qsTr("merge"),
+            icon: Icons.merge,
+            hint: qsTr("Stacks two arms of the graph: background behind, "
+                       + "foreground in front")
+        },
+        {
+            typeId: "transform",
+            title: qsTr("Transform"),
+            label: qsTr("transform"),
+            icon: Icons.transform,
+            hint: qsTr("Moves, scales and rotates everything feeding it as one "
+                       + "unit")
         }
     ]
 

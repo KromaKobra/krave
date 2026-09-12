@@ -201,10 +201,15 @@ def convert(doc, label):
             visual_chain.append(node_id)
 
         elif layer_type == "background":
-            # An Image node comes later; until then a background is a flat colour.
+            # A background is a flat colour; pictures are the Image node's job.
+            # Not converted automatically: a v2 background image filled the whole
+            # canvas, and an Image node placed over this background is a second
+            # node with its own placement -- a judgement call rather than a
+            # mechanical rewrite.
             if props.get("imageSource"):
-                warn("%s: layer %d '%s' had a background image (%s) -- dropped, "
-                     "the background node is colour-only for now"
+                warn("%s: layer %d '%s' had a background image (%s) -- dropped; "
+                     "add an Image node over this background and point it at "
+                     "that file"
                      % (label, index, props.get("name", "?"), props["imageSource"]))
             props.pop("imageSource", None)
             props.pop("fillMode", None)

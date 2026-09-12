@@ -306,6 +306,30 @@ TextNode::TextNode(QObject *parent)
     m_posY = 0.25;
 }
 
+// ----------------------------------------------------------------- ImageNode
+
+ImageNode::ImageNode(QObject *parent)
+    : VisualNode(parent)
+{
+    m_name = tr("Image");
+}
+
+// ----------------------------------------------------------------- MergeNode
+
+MergeNode::MergeNode(QObject *parent)
+    : Node(parent)
+{
+    m_name = tr("Merge");
+}
+
+// ------------------------------------------------------------- TransformNode
+
+TransformNode::TransformNode(QObject *parent)
+    : Node(parent)
+{
+    m_name = tr("Transform");
+}
+
 // ---------------------------------------------------------------- OutputNode
 
 OutputNode::OutputNode(QObject *parent)

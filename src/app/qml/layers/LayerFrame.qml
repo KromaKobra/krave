@@ -25,6 +25,15 @@ Item {
 
     property var layerData: null
 
+    /// The transform nodes enclosing this layer, OUTERMOST FIRST -- straight from
+    /// RenderList's "layerTransforms" role. Empty for a layer under none.
+    ///
+    /// The transform sits on the ROOT item rather than on `group`, so it covers
+    /// canvasArea as well as box, and so the blend-mode texture on `group` is
+    /// captured BEFORE the transform rather than after -- a rotated layer must
+    /// blend with what is under it, not blend a rotated texture.
+    property var layerTransforms: []
+
     /// The layer's placed box, in canvas pixels.
     default property alias content: box.data
 
@@ -33,6 +42,40 @@ Item {
 
     readonly property alias box: box
     readonly property string blendMode: layerData ? layerData.blendMode : "normal"
+
+    /// Compose the enclosing transforms into one matrix, outermost first.
+    ///
+    /// Plain arithmetic over the node properties and frame.width/frame.height on
+    /// purpose: reading `t.offsetX` here registers a real QML dependency, so the
+    /// binding re-evaluates when a slider moves. Anything routed through
+    /// mapToItem would NOT -- see GraphLayout.qml's header for the same trap.
+    function composedMatrix() {
+        const m = Qt.matrix4x4()
+        const list = frame.layerTransforms
+        if (!list)
+            return m
+
+        for (let i = 0; i < list.length; ++i) {
+            const t = list[i]
+            if (!t)
+                continue
+
+            const px = t.pivotX * frame.width
+            const py = t.pivotY * frame.height
+
+            // Offset last so it reads as a plain screen-space nudge rather than
+            // as something the scale and rotation also act on.
+            m.translate(Qt.vector3d(t.offsetX * frame.width,
+                                    t.offsetY * frame.height, 0))
+            m.translate(Qt.vector3d(px, py, 0))
+            m.rotate(t.rotation, Qt.vector3d(0, 0, 1))
+            m.scale(t.scaleX, t.scaleY, 1)
+            m.translate(Qt.vector3d(-px, -py, 0))
+        }
+        return m
+    }
+
+    transform: Matrix4x4 { matrix: frame.composedMatrix() }
 
     Item {
         id: group

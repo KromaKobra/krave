@@ -460,7 +460,7 @@ private:
     qreal m_treble = 0.0;
 };
 
-/// Flat colour behind everything else. An Image node comes later.
+/// Flat colour behind everything else. A picture is an ImageNode's job.
 class BackgroundNode : public VisualNode
 {
     Q_OBJECT
@@ -500,6 +500,107 @@ private:
     bool m_bold = true;
     QColor m_color = QColor(QStringLiteral("#ffffff"));
     QString m_alignment = QStringLiteral("center");
+};
+
+/// A still picture loaded from disk.
+///
+/// The crop is normalized to the SOURCE image rather than given in pixels, so the
+/// node needs to know nothing about the file's dimensions and a project survives
+/// the image being replaced with one of a different size.
+class ImageNode : public VisualNode
+{
+    Q_OBJECT
+
+    /// A file:// URL string. Stored absolute, exactly as the file dialog hands it
+    /// over; the inspector shows a missing-file state rather than moving it.
+    Q_PROPERTY(QString source MEMBER m_source NOTIFY changed)
+    /// "stretch", "fit" or "crop" -- how the (cropped) image meets its box.
+    Q_PROPERTY(QString fillMode MEMBER m_fillMode NOTIFY changed)
+
+    /// The crop rectangle, normalized to the source image. 0,0,1,1 is uncropped.
+    Q_PROPERTY(qreal cropX MEMBER m_cropX NOTIFY changed)
+    Q_PROPERTY(qreal cropY MEMBER m_cropY NOTIFY changed)
+    Q_PROPERTY(qreal cropW MEMBER m_cropW NOTIFY changed)
+    Q_PROPERTY(qreal cropH MEMBER m_cropH NOTIFY changed)
+
+public:
+    explicit ImageNode(QObject *parent = nullptr);
+    QString typeId() const override { return QStringLiteral("image"); }
+
+private:
+    QString m_source;
+    QString m_fillMode = QStringLiteral("crop");
+    qreal m_cropX = 0.0;
+    qreal m_cropY = 0.0;
+    qreal m_cropW = 1.0;
+    qreal m_cropH = 1.0;
+};
+
+/// Stacks two visual subgraphs: `background` behind, `foreground` in front.
+///
+/// This is the node that makes the graph a graph rather than a chain -- until it
+/// existed, every visual type had at most one visual input and the flatten could
+/// only ever produce a straight line.
+///
+/// It has no properties and is deliberately NOT a VisualNode: it draws nothing,
+/// so it must not enter the draw list and must not show the placement section.
+/// The compositing is done entirely by port ORDER, which RenderList::flatten
+/// already walks -- hence no code here at all.
+class MergeNode : public Node
+{
+    Q_OBJECT
+
+public:
+    explicit MergeNode(QObject *parent = nullptr);
+    QString typeId() const override { return QStringLiteral("merge"); }
+};
+
+/// Moves, scales and rotates its entire upstream subgraph as one unit.
+///
+/// WHY THIS NEEDS NO OFFSCREEN BUFFER. A visual edge carries no pixels:
+/// compositing is Qt Quick's scene graph drawing a flat, z-ordered list of items
+/// that all share the canvas coordinate space. Every transform here is affine and
+/// expressed about a canvas-relative pivot, and applying one accumulated affine
+/// transform to each member of a group is mathematically identical to applying it
+/// once to the group. So the flat draw list survives intact; each entry just
+/// carries the list of transform nodes enclosing it (RenderList::Entry).
+///
+/// That equivalence is exact for transform ONLY. It would not hold for a group
+/// opacity or a group blend mode -- two overlapping half-transparent layers
+/// composited separately do not look like the pair composited then faded -- which
+/// is why this node has neither, and why adding them later would mean a real
+/// render target rather than another property.
+///
+/// Not a VisualNode: it has no box of its own and must show no placement section.
+class TransformNode : public Node
+{
+    Q_OBJECT
+
+    /// Translation as a fraction of canvas width / height, so it survives a
+    /// change of export resolution like every other geometry property here.
+    Q_PROPERTY(qreal offsetX MEMBER m_offsetX NOTIFY changed)
+    Q_PROPERTY(qreal offsetY MEMBER m_offsetY NOTIFY changed)
+    Q_PROPERTY(qreal scaleX MEMBER m_scaleX NOTIFY changed)
+    Q_PROPERTY(qreal scaleY MEMBER m_scaleY NOTIFY changed)
+    /// Degrees about the pivot, clockwise.
+    Q_PROPERTY(qreal rotation MEMBER m_rotation NOTIFY changed)
+    /// The point the scale and rotation happen about, as a fraction of the
+    /// canvas -- not of the group's bounding box, which no node knows.
+    Q_PROPERTY(qreal pivotX MEMBER m_pivotX NOTIFY changed)
+    Q_PROPERTY(qreal pivotY MEMBER m_pivotY NOTIFY changed)
+
+public:
+    explicit TransformNode(QObject *parent = nullptr);
+    QString typeId() const override { return QStringLiteral("transform"); }
+
+private:
+    qreal m_offsetX = 0.0;
+    qreal m_offsetY = 0.0;
+    qreal m_scaleX = 1.0;
+    qreal m_scaleY = 1.0;
+    qreal m_rotation = 0.0;
+    qreal m_pivotX = 0.5;
+    qreal m_pivotY = 0.5;
 };
 
 /// The root of the render. Exactly one exists and it cannot be deleted.
