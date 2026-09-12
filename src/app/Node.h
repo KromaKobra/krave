@@ -603,6 +603,78 @@ private:
     qreal m_pivotY = 0.5;
 };
 
+/// Softens, smears and colour-fringes its entire upstream subgraph.
+///
+/// Three effects, each independently switchable: a Gaussian blur, a chroma-only
+/// blur (Cb/Cr softened, luma left sharp) and a radial RGB separation. An
+/// optional circle mask scales how much of each a pixel gets, and inverting it
+/// makes the frame edges smear while the middle stays sharp -- which is the look
+/// this node exists for.
+///
+/// PER-LAYER, NOT PER-GROUP -- and unlike TransformNode, that is an
+/// approximation rather than an identity. The enclosing-stack mechanism is the
+/// same one TransformNode uses (RenderList::Entry), but the argument that
+/// justifies it there does not carry over: an affine map distributes over a
+/// group, a convolution does not. Two overlapping upstream layers therefore give
+/// `blur(A) over blur(B)` rather than `blur(A over B)`, and a flat Background
+/// upstream stays effectively sharp because blurring a constant colour returns
+/// it unchanged. TransformNode's header names group blend and group opacity as
+/// the cases that would need a real render target; blur is a third, and it buys
+/// its way out of one by accepting that difference. Stack two layers that must
+/// smear together under a single Merge and blur is the wrong tool -- blur each
+/// arm instead.
+///
+/// Every amount is a fraction of the CANVAS HEIGHT, never a pixel count, for the
+/// same reason every other geometry property here is normalized: a project has
+/// to look identical at 640x360 preview and at 4K export.
+///
+/// Not a VisualNode: it draws nothing, has no box of its own, and must show no
+/// placement section.
+class BlurNode : public Node
+{
+    Q_OBJECT
+
+    /// Plain Gaussian softening. Radius as a fraction of canvas height.
+    Q_PROPERTY(bool gaussianEnabled MEMBER m_gaussianEnabled NOTIFY changed)
+    Q_PROPERTY(qreal gaussianAmount MEMBER m_gaussianAmount NOTIFY changed)
+    /// Blurs Cb/Cr only, leaving luma sharp -- edges stay crisp while the colour
+    /// bleeds across them.
+    Q_PROPERTY(bool chromaBlurEnabled MEMBER m_chromaBlurEnabled NOTIFY changed)
+    Q_PROPERTY(qreal chromaBlurAmount MEMBER m_chromaBlurAmount NOTIFY changed)
+    /// Chromatic aberration: R and B pulled apart radially from the mask centre.
+    Q_PROPERTY(bool chromaSplitEnabled MEMBER m_chromaSplitEnabled NOTIFY changed)
+    Q_PROPERTY(qreal chromaSplitAmount MEMBER m_chromaSplitAmount NOTIFY changed)
+
+    /// The circle that scales how much effect each pixel gets. Centre and radius
+    /// are fractions of the canvas; softness is a fraction of the radius.
+    Q_PROPERTY(bool maskEnabled MEMBER m_maskEnabled NOTIFY changed)
+    Q_PROPERTY(qreal maskX MEMBER m_maskX NOTIFY changed)
+    Q_PROPERTY(qreal maskY MEMBER m_maskY NOTIFY changed)
+    Q_PROPERTY(qreal maskRadius MEMBER m_maskRadius NOTIFY changed)
+    Q_PROPERTY(qreal maskSoftness MEMBER m_maskSoftness NOTIFY changed)
+    /// Off: inside the circle is blurred. On: outside it is.
+    Q_PROPERTY(bool maskInvert MEMBER m_maskInvert NOTIFY changed)
+
+public:
+    explicit BlurNode(QObject *parent = nullptr);
+    QString typeId() const override { return QStringLiteral("blur"); }
+
+private:
+    bool m_gaussianEnabled = false;
+    qreal m_gaussianAmount = 0.02;
+    bool m_chromaBlurEnabled = false;
+    qreal m_chromaBlurAmount = 0.05;
+    bool m_chromaSplitEnabled = false;
+    qreal m_chromaSplitAmount = 0.01;
+
+    bool m_maskEnabled = false;
+    qreal m_maskX = 0.5;
+    qreal m_maskY = 0.5;
+    qreal m_maskRadius = 0.3;
+    qreal m_maskSoftness = 0.5;
+    bool m_maskInvert = false;
+};
+
 /// The root of the render. Exactly one exists and it cannot be deleted.
 ///
 /// Walking its visual input backwards produces the draw order, which is the whole

@@ -6,7 +6,7 @@
     },
     "connections": [
         {
-            "from": 5,
+            "from": 13,
             "port": "visual",
             "to": 1
         },
@@ -16,7 +16,7 @@
             "to": 3
         },
         {
-            "from": 4,
+            "from": 7,
             "port": "visual",
             "to": 5
         },
@@ -24,6 +24,41 @@
             "from": 3,
             "port": "audio",
             "to": 5
+        },
+        {
+            "from": 7,
+            "port": "foreground",
+            "to": 6
+        },
+        {
+            "from": 9,
+            "port": "foreground",
+            "to": 10
+        },
+        {
+            "from": 5,
+            "port": "visual",
+            "to": 11
+        },
+        {
+            "from": 11,
+            "port": "background",
+            "to": 12
+        },
+        {
+            "from": 5,
+            "port": "foreground",
+            "to": 12
+        },
+        {
+            "from": 4,
+            "port": "background",
+            "to": 13
+        },
+        {
+            "from": 12,
+            "port": "foreground",
+            "to": 13
         }
     ],
     "format": "music-visualizer-project",
@@ -31,8 +66,8 @@
         {
             "id": 1,
             "props": {
-                "graphX": 40,
-                "graphY": 490,
+                "graphX": 136,
+                "graphY": 736,
                 "name": "Output"
             },
             "type": "output"
@@ -40,7 +75,7 @@
         {
             "id": 2,
             "props": {
-                "graphX": 120,
+                "graphX": 40,
                 "graphY": 40,
                 "name": "Audio"
             },
@@ -61,8 +96,8 @@
                 "floorLevel": 0,
                 "gamma": 0.35,
                 "gateDb": 0,
-                "graphX": 128,
-                "graphY": 200,
+                "graphX": 40,
+                "graphY": 190,
                 "hzLinearFactor": 1,
                 "linearFloor": 0,
                 "linearGain": 0.45,
@@ -85,8 +120,8 @@
             "props": {
                 "blendMode": "normal",
                 "color": "#ff121220",
-                "graphX": 0,
-                "graphY": -56,
+                "graphX": -64,
+                "graphY": 352,
                 "layerOpacity": 1,
                 "layerRotation": 0,
                 "layerVisible": true,
@@ -110,7 +145,7 @@
                 "colorB": "#ffffffff",
                 "colorMode": "solid",
                 "cornerRadius": 3.5,
-                "graphX": 40,
+                "graphX": 152,
                 "graphY": 344,
                 "growUpward": true,
                 "innerRadius": 0.35,
@@ -130,6 +165,109 @@
                 "sizeW": 1.29
             },
             "type": "spectrum"
+        },
+        {
+            "id": 6,
+            "props": {
+                "graphX": 264,
+                "graphY": 190,
+                "name": "Merge"
+            },
+            "type": "merge"
+        },
+        {
+            "id": 7,
+            "props": {
+                "alignment": "center",
+                "blendMode": "normal",
+                "bold": true,
+                "color": "#ffffffff",
+                "fontFamily": "Segoe UI",
+                "fontScale": 0.06,
+                "graphX": 304,
+                "graphY": 24,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "Text",
+                "posX": 0.5,
+                "posY": 0.94,
+                "sizeH": 1,
+                "sizeW": 1,
+                "text": "Track title"
+            },
+            "type": "text"
+        },
+        {
+            "id": 9,
+            "props": {
+                "blendMode": "normal",
+                "cropH": 0.42,
+                "cropW": 0.3,
+                "cropX": 0.34,
+                "cropY": 0.32,
+                "fillMode": "crop",
+                "graphX": 184,
+                "graphY": -328,
+                "layerOpacity": 1,
+                "layerRotation": 0,
+                "layerVisible": true,
+                "name": "Image",
+                "posX": 0.5,
+                "posY": 0.5,
+                "sizeH": 0.49,
+                "sizeW": 0.51,
+                "source": "file:///home/kroma/Pictures/Wallpapers/nix-bright.png"
+            },
+            "type": "image"
+        },
+        {
+            "id": 10,
+            "props": {
+                "graphX": 200,
+                "graphY": -88,
+                "name": "Merge"
+            },
+            "type": "merge"
+        },
+        {
+            "id": 11,
+            "props": {
+                "chromaBlurAmount": 0.088,
+                "chromaBlurEnabled": true,
+                "chromaSplitAmount": 0.01,
+                "chromaSplitEnabled": true,
+                "gaussianAmount": 0.02,
+                "gaussianEnabled": false,
+                "graphX": 264,
+                "graphY": 440,
+                "maskEnabled": true,
+                "maskInvert": true,
+                "maskRadius": 0.42,
+                "maskSoftness": 0.35,
+                "maskX": 0.5,
+                "maskY": 0.5,
+                "name": "Blur"
+            },
+            "type": "blur"
+        },
+        {
+            "id": 12,
+            "props": {
+                "graphX": 136,
+                "graphY": 560,
+                "name": "Merge"
+            },
+            "type": "merge"
+        },
+        {
+            "id": 13,
+            "props": {
+                "graphX": 72,
+                "graphY": 656,
+                "name": "Merge"
+            },
+            "type": "merge"
         }
     ],
     "version": 3

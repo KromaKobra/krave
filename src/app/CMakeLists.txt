@@ -37,6 +37,8 @@ set(app_qml_files
     qml/Main.qml
     qml/VisualizerCanvas.qml
     qml/layers/LayerFrame.qml
+    qml/layers/BlurChain.qml
+    qml/layers/BlurPass.qml
     qml/layers/BarLayerView.qml
     qml/layers/BackgroundLayerView.qml
     qml/layers/TextLayerView.qml
@@ -55,6 +57,7 @@ set(app_qml_files
     qml/panels/inspectors/BackgroundInspector.qml
     qml/panels/inspectors/ImageInspector.qml
     qml/panels/inspectors/TransformInspector.qml
+    qml/panels/inspectors/BlurInspector.qml
     qml/panels/TimelinePanel.qml
     qml/panels/ExportDialog.qml
     qml/controls/AppButton.qml
@@ -107,16 +110,21 @@ qt_add_qml_module(krave
     QML_FILES ${app_qml_files}
 )
 
-# Blend-mode fragment shaders. Compiled to .qsb and placed alongside the QML in
-# the module's resource tree, so LayerFrame can reference them by qrc path.
-qt_add_shaders(krave "blend_shaders"
+# Fragment shaders: the blend modes on LayerFrame's `group`, and the blur node's
+# effect chain. Compiled to .qsb and placed alongside the QML in the module's
+# resource tree, so both can be referenced by qrc path.
+qt_add_shaders(krave "layer_shaders"
     PREFIX "/qt/qml/krave"
     FILES
         shaders/blend_add.frag
         shaders/blend_screen.frag
+        shaders/blur_separable.frag
+        shaders/chroma_split.frag
     OUTPUTS
         shaders/blend_add.frag.qsb
         shaders/blend_screen.frag.qsb
+        shaders/blur_separable.frag.qsb
+        shaders/chroma_split.frag.qsb
 )
 
 target_link_libraries(krave PRIVATE

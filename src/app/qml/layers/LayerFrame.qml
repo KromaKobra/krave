@@ -11,9 +11,18 @@
 //   frame        - spans the canvas
 //     group      - carries visibility, opacity and blend mode; canvas-sized, so
 //                  the blend texture never clips content that leaves the box
+//       effects  - the blur nodes' shader passes, if any; content is reparented
+//                  INSIDE them (see contentHost)
 //       canvas   - `canvasContent`: things that must be free to draw anywhere
 //                  rather than be clipped to the node's own box
 //       box      - `content` (default): the layer's placed, rotatable rectangle
+//
+// The effect chain sits INSIDE `group`, so a layer is blurred before its blend
+// texture is taken and before the enclosing Transform matrix on `frame` is
+// applied. A blurred layer inside a scaled Transform therefore has its blur --
+// and its mask circle -- scaled with the group, which is the same thing `add`
+// and `screen` already do and the only reading under which a transform moves a
+// group as one unit.
 //
 // The backing object is called `layerData`, not `layer`: QQuickItem already
 // declares a FINAL `layer` property (the layer.enabled/layer.effect group), and
@@ -33,6 +42,21 @@ Item {
     /// captured BEFORE the transform rather than after -- a rotated layer must
     /// blend with what is under it, not blend a rotated texture.
     property var layerTransforms: []
+
+    /// The blur nodes enclosing this layer, OUTERMOST FIRST -- RenderList's
+    /// "layerEffects" role. Empty for a layer under none, which is the case
+    /// that must cost nothing: no Loader item, no offscreen buffer.
+    ///
+    /// Unlike layerTransforms these are applied PER LAYER rather than to the
+    /// group as a whole, which is an approximation rather than an identity. See
+    /// BlurNode's header.
+    property var layerEffects: []
+
+    /// Where canvasArea and box actually live: inside the effect chain when
+    /// there is one, directly in `group` when there is not.
+    readonly property Item contentHost: (frame.layerEffects && frame.layerEffects.length > 0
+                                         && effectsLoader.item)
+                                        ? effectsLoader.item.hole : group
 
     /// The layer's placed box, in canvas pixels.
     default property alias content: box.data
@@ -94,14 +118,32 @@ Item {
                     : frame.blendMode === "add" ? addBlend
                     : null
 
+        Loader {
+            id: effectsLoader
+
+            anchors.fill: parent
+            active: frame.layerEffects && frame.layerEffects.length > 0
+            sourceComponent: blurChain
+        }
+
+        // `parent` is a BINDING, not a fixed position in the tree: it moves
+        // these two inside the effect chain when one appears and back out when
+        // it goes, with no imperative reparenting anywhere. z is explicit
+        // because reparenting reorders children, and the box must stay in front
+        // of the canvas-spanning content whatever order they arrive in.
         Item {
             id: canvasArea
+
+            parent: frame.contentHost
             anchors.fill: parent
+            z: 0
         }
 
         Item {
             id: box
 
+            parent: frame.contentHost
+            z: 1
             rotation: frame.layerData ? frame.layerData.layerRotation : 0
             width: frame.layerData ? frame.layerData.sizeW * frame.width : 0
             height: frame.layerData ? frame.layerData.sizeH * frame.height : 0
@@ -109,6 +151,14 @@ Item {
                ? (frame.layerData.posX - frame.layerData.sizeW / 2) * frame.width : 0
             y: frame.layerData
                ? (frame.layerData.posY - frame.layerData.sizeH / 2) * frame.height : 0
+        }
+    }
+
+    Component {
+        id: blurChain
+        BlurChain {
+            effects: frame.layerEffects
+            depth: 0
         }
     }
 

@@ -115,6 +115,8 @@ Node *NodeGraph::createNode(const QString &typeId, int nodeId, QObject *parent)
         node = new MergeNode(parent);
     else if (typeId == QLatin1String("transform"))
         node = new TransformNode(parent);
+    else if (typeId == QLatin1String("blur"))
+        node = new BlurNode(parent);
 
     if (node && nodeId > 0)
         node->setNodeId(nodeId);

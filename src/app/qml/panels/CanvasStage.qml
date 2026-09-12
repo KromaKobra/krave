@@ -150,6 +150,77 @@ Item {
                             border.color: Theme.withAlpha(Theme.accent, 0.45)
                         }
                     }
+
+                    // -------------------------------------- blur mask guide
+                    //
+                    // Where the selected blur node's circle falls, drawn ABOVE
+                    // the canvas item like every other guide here and therefore
+                    // impossible to leak into an exported frame.
+                    //
+                    // Shown whenever a blur with its circle on is selected, not
+                    // gated on the guides toggle: those are permanent framing
+                    // aids, this one is the readout for a control the user is
+                    // actively dragging.
+                    //
+                    // Nothing here is draggable. No gizmo of any kind exists in
+                    // this editor yet, and the circle is moved and sized from
+                    // the inspector's sliders.
+                    //
+                    // Drawn in canvas coordinates, so it shows where the mask
+                    // sits BEFORE any enclosing Transform -- which is where it
+                    // is authored. A blur inside a scaled transform has its
+                    // circle scaled with the group (see LayerFrame), and the
+                    // guide does not follow that; it would have to be drawn per
+                    // layer rather than per node to do so.
+                    Item {
+                        id: maskGuide
+
+                        readonly property var node: {
+                            const n = nodeGraph.selectedNode
+                            return (n && n.typeId === "blur" && n.maskEnabled) ? n : null
+                        }
+
+                        anchors.fill: parent
+                        visible: maskGuide.node !== null
+
+                        // Plain arithmetic over frameWidth/frameHeight rather
+                        // than mapToItem: only the former registers as a QML
+                        // dependency, so only the former follows a slider.
+                        Repeater {
+                            // The radius itself, then the two ends of the soft
+                            // edge -- which is where the falloff actually
+                            // starts and stops mattering.
+                            model: [
+                                { scale: 1, alpha: 0.55 },
+                                { scale: 1 - (maskGuide.node ? maskGuide.node.maskSoftness : 0),
+                                  alpha: 0.22 },
+                                { scale: 1 + (maskGuide.node ? maskGuide.node.maskSoftness : 0),
+                                  alpha: 0.22 }
+                            ]
+
+                            delegate: Rectangle {
+                                required property var modelData
+
+                                // maskRadius is a fraction of canvas HEIGHT, so
+                                // the guide is round at any aspect ratio -- the
+                                // same convention the shader's mask uses.
+                                readonly property real r: Math.max(
+                                    0, (maskGuide.node ? maskGuide.node.maskRadius : 0)
+                                       * modelData.scale * root.frameHeight)
+
+                                x: (maskGuide.node ? maskGuide.node.maskX : 0.5)
+                                   * root.frameWidth - r
+                                y: (maskGuide.node ? maskGuide.node.maskY : 0.5)
+                                   * root.frameHeight - r
+                                width: r * 2
+                                height: r * 2
+                                radius: r
+                                color: "transparent"
+                                border.width: 1
+                                border.color: Theme.withAlpha(Theme.accent, modelData.alpha)
+                            }
+                        }
+                    }
                 }
             }
         }

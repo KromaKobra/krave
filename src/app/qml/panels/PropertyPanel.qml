@@ -268,6 +268,7 @@ Rectangle {
                 BackgroundInspector { node: root.selected; nodeType: root.selectedType }
                 ImageInspector      { node: root.selected; nodeType: root.selectedType }
                 TransformInspector  { node: root.selected; nodeType: root.selectedType }
+                BlurInspector       { node: root.selected; nodeType: root.selectedType }
                 // Merge has no properties at all -- the compositing is its port
                 // order -- so the shared Node section above is its whole panel.
             }

@@ -30,6 +30,13 @@ QVariant RenderList::data(const QModelIndex &index, int role) const
             result.append(QVariant::fromValue(t));
         return result;
     }
+    case EffectsRole: {
+        QVariantList result;
+        result.reserve(entry.effects.size());
+        for (Node *e : entry.effects)
+            result.append(QVariant::fromValue(e));
+        return result;
+    }
     default:
         return {};
     }
@@ -42,11 +49,12 @@ QHash<int, QByteArray> RenderList::roleNames() const
     return {
         {LayerRole, "layerObject"},
         {TransformsRole, "layerTransforms"},
+        {EffectsRole, "layerEffects"},
     };
 }
 
 void RenderList::flatten(Node *n, QVector<Entry> &out, QSet<const Node *> &onPath,
-                         QVector<Node *> &stack)
+                         QVector<Node *> &stack, QVector<Node *> &effects)
 {
     if (!n)
         return;
@@ -65,17 +73,26 @@ void RenderList::flatten(Node *n, QVector<Entry> &out, QSet<const Node *> &onPat
     if (isTransform)
         stack.append(n);
 
+    // Same push-before-descending shape, on its own stack: a blur nested inside
+    // another reports both, outer one first, which is the order the shader
+    // passes nest in.
+    const bool isBlur = qobject_cast<BlurNode *>(n) != nullptr;
+    if (isBlur)
+        effects.append(n);
+
     const QVector<PortSpec> &ports = n->spec().inputs;
     for (int port = 0; port < ports.size(); ++port) {
         if (ports.at(port).stacked)
-            flatten(n->input(port), out, onPath, stack);
+            flatten(n->input(port), out, onPath, stack, effects);
     }
 
     if (isTransform)
         stack.removeLast();
+    if (isBlur)
+        effects.removeLast();
 
     if (auto *v = qobject_cast<VisualNode *>(n))
-        out.append(Entry{v, stack});
+        out.append(Entry{v, stack, effects});
 
     onPath.remove(n);
 }
@@ -96,10 +113,11 @@ void RenderList::rebuild()
         if (OutputNode *output = m_graph->outputNode()) {
             QSet<const Node *> onPath;
             QVector<Node *> stack;
+            QVector<Node *> effects;
             // Seeded from the Output's input rather than the Output itself: it is
             // not a VisualNode, so it would not be appended anyway, but starting
             // inside the chain makes that independent of the class hierarchy.
-            flatten(output->input(0), next, onPath, stack);
+            flatten(output->input(0), next, onPath, stack, effects);
         }
     }
 

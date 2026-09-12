@@ -77,6 +77,14 @@ QtObject {
             icon: Icons.transform,
             hint: qsTr("Moves, scales and rotates everything feeding it as one "
                        + "unit")
+        },
+        {
+            typeId: "blur",
+            title: qsTr("Blur"),
+            label: qsTr("blur"),
+            icon: Icons.blur,
+            hint: qsTr("Softens and colour-fringes everything feeding it, "
+                       + "optionally only inside or outside a circle")
         }
     ]
 

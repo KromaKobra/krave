@@ -330,6 +330,14 @@ TransformNode::TransformNode(QObject *parent)
     m_name = tr("Transform");
 }
 
+// ------------------------------------------------------------------ BlurNode
+
+BlurNode::BlurNode(QObject *parent)
+    : Node(parent)
+{
+    m_name = tr("Blur");
+}
+
 // ---------------------------------------------------------------- OutputNode
 
 OutputNode::OutputNode(QObject *parent)

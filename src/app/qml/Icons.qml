@@ -47,6 +47,9 @@ QtObject {
     /// A box with a corner handle and a rotation arc above it: the Transform
     /// node moves, scales and turns whatever feeds it.
     readonly property string transform: "M4.4 9.6 H14.4 V19.6 H4.4 Z M14.4 19.6 H19.6 V14.4 M17.2 17.2 L19.6 19.6 M9 6.6 A6 6 0 0 1 19.6 8.4 M19.6 4.9 V8.6 H16"
+    /// A solid disc breaking up into shorter and shorter strokes to its right:
+    /// the Blur node, and the circle mask it is usually used with.
+    readonly property string blur: "M14.2 12 A5.2 5.2 0 1 1 3.8 12 A5.2 5.2 0 1 1 14.2 12 Z M17.2 8.7 V15.3 M20.2 10.4 V13.6"
 
     // ------------------------------------------------------------- interface
     readonly property string plus: "M12 5.4 V18.6 M5.4 12 H18.6"

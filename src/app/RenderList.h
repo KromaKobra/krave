@@ -27,6 +27,16 @@ class NodeGraph;
 /// entry just records which transforms enclose it. See TransformNode's header for
 /// why this holds for transform and would not for a group opacity or blend.
 ///
+/// A Blur rides the SAME mechanism -- a second stack, copied into each entry --
+/// but WITHOUT that equivalence. Convolution does not distribute over a group, so
+/// blurring each member separately is an approximation of blurring the composite,
+/// not a restatement of it: two overlapping layers give `blur(A) over blur(B)`.
+/// The flat list is kept anyway because the alternative is a real render target
+/// per group, and the difference only shows where upstream layers overlap. That
+/// asymmetry is deliberate and is documented on BlurNode; it is the one place
+/// where reading "enclosing stack" as "identical to enclosing the group" is
+/// wrong.
+///
 /// A QAbstractListModel rather than a QVariantList property: a list property
 /// would make the Repeater destroy and recreate every delegate on any topology
 /// change, and would force the delegate off the `layerObject` role onto
@@ -38,18 +48,24 @@ class RenderList : public QAbstractListModel
     Q_OBJECT
 
 public:
-    /// One draw call: a visual node and the transform nodes enclosing it,
-    /// OUTERMOST FIRST -- which is the order their matrices must be composed in.
+    /// One draw call: a visual node, the transform nodes enclosing it and the
+    /// effect nodes enclosing it, both OUTERMOST FIRST -- which is the order the
+    /// matrices compose in and the order the effect passes nest in.
     struct Entry
     {
         VisualNode *node = nullptr;
         QVector<Node *> transforms;
+        /// Blur nodes enclosing this layer. Outermost first, so the QML chain
+        /// can recurse straight down the list.
+        QVector<Node *> effects;
 
-        /// Both members, so re-plugging a transform rebuilds the list even
-        /// though the set of nodes drawn has not changed. See rebuild().
+        /// All three members, so re-plugging a transform or a blur rebuilds the
+        /// list even though the set of nodes drawn has not changed. See
+        /// rebuild().
         bool operator==(const Entry &other) const
         {
-            return node == other.node && transforms == other.transforms;
+            return node == other.node && transforms == other.transforms
+                && effects == other.effects;
         }
         bool operator!=(const Entry &other) const { return !(*this == other); }
     };
@@ -58,6 +74,7 @@ public:
     {
         LayerRole = Qt::UserRole + 1,
         TransformsRole,
+        EffectsRole,
     };
 
     /// Pathological-graph guard. A corrupt file with a deeply reused subgraph can
@@ -87,7 +104,10 @@ public:
     /// `stack` is the transform nodes currently enclosing the recursion, pushed
     /// on the way down and popped on the way out; each appended entry takes a
     /// copy. The recursion descends FROM the Output, so the push order is
-    /// outermost-first, which is the order the matrices compose in.
+    /// outermost-first, which is the order the matrices compose in. `effects` is
+    /// the same thing for blur nodes -- a separate stack rather than one mixed
+    /// list, because the two are consumed by different parts of LayerFrame and
+    /// nothing about their relative order is meaningful.
     ///
     /// Four properties worth knowing:
     ///
@@ -99,14 +119,14 @@ public:
     ///     path set, not a global visited set, so it breaks cycles without
     ///     deduplicating legitimate reuse -- and the two paths can legitimately
     ///     carry different transforms.
-    ///   - Only VisualNodes are appended, so Merge, Transform and the Output
-    ///     itself organise the list without ever appearing in it.
+    ///   - Only VisualNodes are appended, so Merge, Transform, Blur and the
+    ///     Output itself organise the list without ever appearing in it.
     ///
     /// The cycle guard is needed IN ADDITION TO NodeGraph::canLink's, because a
     /// hand-edited or corrupt file never goes through canLink, and unguarded
     /// recursion on A->B->A is a hard crash rather than a bad picture.
     static void flatten(Node *n, QVector<Entry> &out, QSet<const Node *> &onPath,
-                        QVector<Node *> &stack);
+                        QVector<Node *> &stack, QVector<Node *> &effects);
 
 private:
     NodeGraph *m_graph = nullptr;

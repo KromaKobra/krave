@@ -241,6 +241,43 @@ once per thing drawing it.
 | Neighbour smoothing | Turns a comb of unrelated spikes into one moving contour |
 | Resting level | Keeps idle bars visible |
 
+## The Blur node
+
+The one node that changes pixels rather than arranging them. It carries three
+effects, each switchable on its own — a **Gaussian blur**, a **chroma blur**
+(Cb/Cr softened, luma left sharp, the look cheap video compression gives) and a
+**radial RGB separation** — plus an optional **circle** that scales how much
+effect each pixel gets. Invert the circle and the middle of the frame stays
+sharp while everything toward the edges fringes and smears, which is what the
+node was built for.
+
+**It blurs each upstream layer separately, not the composited group.** That is
+the honest caveat and it is not an implementation detail that can be fixed
+later without a different design. A transform can be pushed down onto every
+member of a group because an affine map distributes over a group; a convolution
+does not. So two overlapping layers under one blur give `blur(A) over blur(B)`
+rather than `blur(A over B)`. Where it shows:
+
+- Overlapping upstream layers — their *edges against each other* stay crisp,
+  because each was blurred before they met.
+- A flat **Background** upstream stays looking sharp, since blurring a solid
+  colour returns the same solid colour.
+
+Neither is wrong-looking on its own, and the alternative — an offscreen render
+target per group — is the same cost `TransformNode`'s header already identifies
+as what a group opacity or group blend would need. To smear two layers
+*together*, put a blur on each arm before the **Merge** rather than one after it.
+
+The effect sits inside the layer's blend/opacity group and therefore **inside**
+any enclosing Transform: a blurred layer in a scaled transform gets its blur and
+its mask circle scaled with it, exactly as `add` and `screen` already behave.
+
+Every radius is a **fraction of canvas height**, never a pixel count, so the 4K
+export matches the preview. The passes are `layer.enabled` only while their
+effect is switched on, so an all-off blur node costs no offscreen buffer at all,
+and two blur nodes on one path nest rather than conflict (`BlurChain.qml`
+recurses through a `Loader`).
+
 ## Node types
 
 | Type | In | Out | Notable properties |
@@ -251,6 +288,10 @@ once per thing drawing it.
 | `spectrum` | visual, audio | visual | width, corner radius, min/max height, linear / radial, **mirror bars** (each bar grows both ways from its base), **arc** (linear only: bows the base line into a dome or a bowl, optionally tapering the bars to fill the fan), **mirror spectrum** (reflects the frequency axis, with bass at the edges or in the centre), solid / gradient / spectrum colour, reactive brightness |
 | `text` | visual | visual | text, font, size (relative to canvas height), colour, alignment |
 | `background` | — | visual | colour |
+| `image` | — | visual | file, fill mode, crop rectangle (normalized to the source) |
+| `merge` | visual (background), visual (foreground) | visual | none. Stacks two arms of the graph; port order *is* compositing order. Draws nothing |
+| `transform` | visual | visual | offset, scale, rotation, pivot — all applied to everything upstream as one unit. Draws nothing |
+| `blur` | visual | visual | Gaussian / chroma-blur / chromatic-separation toggles and amounts, circle mask (centre, radius, soft edge, invert). See above. Draws nothing |
 
 Nodes that draw also have position, size, rotation, opacity, visibility and blend mode. Geometry is
 normalized 0..1, so a project renders identically at preview size and at 4K. Nodes that do **not**
@@ -302,14 +343,15 @@ auto-gain ever converging — with no error and a plausible-looking picture.
 
 Implemented: audio import and playback (mp3/wav/flac/aac/m4a/ogg), live FFT preview, the node graph
 editor (pan, drag, drag-to-connect with type checking and cycle rejection, add and delete), the
-spectrum node (linear or radial, mirrored and arced), background and text nodes, visibility,
-`add`/`screen` blend modes, live property editing, project save/load, a headless `--render` mode,
-and export to MP4 (H.264) and MOV (ProRes 422 HQ) with resolution and frame-rate settings, optional
-audio, progress, ETA and cancellation.
+spectrum node (linear or radial, mirrored and arced), background, text and image nodes, the merge
+and transform nodes, the blur node (Gaussian, chroma blur and chromatic separation, with a circle
+mask), visibility, `add`/`screen` blend modes, live property editing, project save/load, a headless
+`--render` mode, and export to MP4 (H.264) and MOV (ProRes 422 HQ) with resolution and frame-rate
+settings, optional audio, progress, ETA and cancellation.
 
-Not implemented: `multiply` blending (see above), image and video backgrounds (an Image node is
-what those want), zoom in the graph editor, and a Merge node — the flatten already draws a shared
-subgraph once per path in anticipation of one, and `tst_graph` records that as a pending test.
+Not implemented: `multiply` blending (see above), video backgrounds, zoom in the graph editor, and
+any effect that needs a group render target rather than a per-layer pass — the blur node documents
+where that line falls.
 
 Removed in the move to a graph: the particle layer, and the background layer's still image. Both
 are recoverable from git when they are revisited as nodes of their own.

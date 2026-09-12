@@ -121,6 +121,15 @@ const QVector<NodeTypeSpec> &table()
         transform.hasOutput = true;
         t.append(transform);
 
+        // Softens everything upstream of it. Like transform it organises rather
+        // than draws, so `visual` stays false -- but unlike transform, the
+        // per-layer application is an approximation. See BlurNode.
+        NodeTypeSpec blur;
+        blur.typeId = QStringLiteral("blur");
+        blur.inputs = {visualIn()};
+        blur.hasOutput = true;
+        t.append(blur);
+
         return t;
     }();
     return specs;

@@ -54,6 +54,7 @@ private Q_SLOTS:
     void mergeDrawsItsBackgroundArmFirst();
     void aCycleThroughAMergesSecondInputIsRefused();
     void transformsAccumulateOutermostFirst();
+    void blursAccumulateOutermostFirst();
     void organizingNodesNeverAppearInTheRenderList();
     void nodeIdsAreNotReusedAfterDeletion();
     void unconnectedSeparatorsAreNotAnalyzed();
@@ -94,7 +95,7 @@ void TestGraph::portTableCoversEveryNodeType()
         QStringLiteral("separator"), QStringLiteral("background"),
         QStringLiteral("spectrum"),  QStringLiteral("text"),
         QStringLiteral("image"),     QStringLiteral("merge"),
-        QStringLiteral("transform"),
+        QStringLiteral("transform"), QStringLiteral("blur"),
     };
     QCOMPARE(seen, expected);
 
@@ -440,19 +441,22 @@ void TestGraph::flattenSurvivesACycleBuiltByHand()
     QVector<RenderList::Entry> out;
     QSet<const Node *> onPath;
     QVector<Node *> stack;
-    RenderList::flatten(nodeB, out, onPath, stack);
+    QVector<Node *> effects;
+    RenderList::flatten(nodeB, out, onPath, stack, effects);
     QCOMPARE(out.size(), 2);
     QVERIFY(onPath.isEmpty()); // the walk leaves the path set as it found it
     QVERIFY(stack.isEmpty()); // and leaves the transform stack as it found it too
+    QVERIFY(effects.isEmpty()); // and the effect stack likewise
 
     // Re-entered on the path: terminate, warn, contribute nothing.
     QVector<RenderList::Entry> again;
     QSet<const Node *> reentered{nodeA};
     QVector<Node *> againStack;
+    QVector<Node *> againEffects;
     QTest::ignoreMessage(QtWarningMsg,
                          qPrintable(QStringLiteral("mv: cycle in the visual chain at node %1")
                                         .arg(a)));
-    RenderList::flatten(nodeA, again, reentered, againStack);
+    RenderList::flatten(nodeA, again, reentered, againStack, againEffects);
     QVERIFY(again.isEmpty());
 
     // rebuild() over the real graph terminates and produces the chain.
@@ -664,21 +668,66 @@ void TestGraph::transformsAccumulateOutermostFirst()
     QVERIFY(entries.at(1).transforms.isEmpty());
 }
 
+void TestGraph::blursAccumulateOutermostFirst()
+{
+    // The same enclosing-stack mechanism transforms use, on a second stack --
+    // and the reason Entry::effects exists at all. A blur draws nothing, so if
+    // this stack were not recorded the node would have no effect whatsoever.
+    NodeGraph graph;
+    minimalGraph(graph);
+
+    const int inner = graph.addNode(QStringLiteral("blur"), 0, 0);
+    const int outer = graph.addNode(QStringLiteral("blur"), 0, 0);
+    const int spectrum = graph.addNode(QStringLiteral("spectrum"), 0, 0);
+    QVERIFY(inner > 0 && outer > 0 && spectrum > 0);
+
+    // spectrum -> inner -> outer -> output.
+    QVERIFY(graph.link(spectrum, inner, QStringLiteral("visual")));
+    QVERIFY(graph.link(inner, outer, QStringLiteral("visual")));
+    QVERIFY(graph.link(outer, graph.outputNode()->nodeId(), QStringLiteral("visual")));
+
+    QVector<RenderList::Entry> entries = graph.renderList()->entries();
+    QCOMPARE(entries.size(), 1);
+    QCOMPARE(entries.at(0).node->nodeId(), spectrum);
+    // Nested blurs report both, and the ORDER is what the QML chain recurses
+    // down: outermost node is the outermost pass.
+    QCOMPARE(entries.at(0).effects.size(), 2);
+    QCOMPARE(entries.at(0).effects.at(0)->nodeId(), outer);
+    QCOMPARE(entries.at(0).effects.at(1)->nodeId(), inner);
+    // And the blurs themselves are organizers, not layers.
+    QCOMPARE(graph.renderList()->nodes().size(), 1);
+
+    // Re-plugging a blur changes no node in the draw list, so only
+    // Entry::operator== comparing `effects` makes the model rebuild. Without
+    // that, dropping a blur out of the chain would leave the canvas blurred.
+    QSignalSpy reset(graph.renderList(), &QAbstractItemModel::modelReset);
+    QVERIFY(graph.link(spectrum, outer, QStringLiteral("visual")));
+    QCOMPARE(reset.count(), 1);
+
+    entries = graph.renderList()->entries();
+    QCOMPARE(entries.size(), 1);
+    QCOMPARE(entries.at(0).node->nodeId(), spectrum);
+    QCOMPARE(entries.at(0).effects.size(), 1);
+    QCOMPARE(entries.at(0).effects.first()->nodeId(), outer);
+}
+
 void TestGraph::organizingNodesNeverAppearInTheRenderList()
 {
-    // Merge, Transform and the Output shape the draw list without being drawn.
-    // If any of them were a VisualNode it would land in the list and the canvas
-    // would try to find a delegate for it.
+    // Merge, Transform, Blur and the Output shape the draw list without being
+    // drawn. If any of them were a VisualNode it would land in the list and the
+    // canvas would try to find a delegate for it.
     NodeGraph graph;
     minimalGraph(graph);
 
     const int merge = graph.addNode(QStringLiteral("merge"), 0, 0);
     const int transform = graph.addNode(QStringLiteral("transform"), 0, 0);
+    const int blur = graph.addNode(QStringLiteral("blur"), 0, 0);
     const int image = graph.addNode(QStringLiteral("image"), 0, 0);
-    QVERIFY(merge > 0 && transform > 0 && image > 0);
+    QVERIFY(merge > 0 && transform > 0 && blur > 0 && image > 0);
 
     QVERIFY(graph.link(image, merge, QStringLiteral("background")));
-    QVERIFY(graph.link(merge, transform, QStringLiteral("visual")));
+    QVERIFY(graph.link(merge, blur, QStringLiteral("visual")));
+    QVERIFY(graph.link(blur, transform, QStringLiteral("visual")));
     QVERIFY(graph.link(transform, graph.outputNode()->nodeId(), QStringLiteral("visual")));
 
     const QVector<VisualNode *> drawn = graph.renderList()->nodes();
@@ -689,12 +738,16 @@ void TestGraph::organizingNodesNeverAppearInTheRenderList()
     // this one list.
     QVERIFY(!qobject_cast<VisualNode *>(graph.nodeById(merge)));
     QVERIFY(!qobject_cast<VisualNode *>(graph.nodeById(transform)));
+    QVERIFY(!qobject_cast<VisualNode *>(graph.nodeById(blur)));
     QVERIFY(qobject_cast<VisualNode *>(graph.nodeById(image)));
 
-    // The image is enclosed by the transform even with a merge in between: the
-    // stack follows the recursion, not the immediate parent.
-    QCOMPARE(graph.renderList()->entries().first().transforms.size(), 1);
-    QCOMPARE(graph.renderList()->entries().first().transforms.first()->nodeId(), transform);
+    // The image is enclosed by both even with a merge in between: the stacks
+    // follow the recursion, not the immediate parent.
+    const RenderList::Entry &entry = graph.renderList()->entries().first();
+    QCOMPARE(entry.transforms.size(), 1);
+    QCOMPARE(entry.transforms.first()->nodeId(), transform);
+    QCOMPARE(entry.effects.size(), 1);
+    QCOMPARE(entry.effects.first()->nodeId(), blur);
 }
 
 void TestGraph::nodeIdsAreNotReusedAfterDeletion()

@@ -35,6 +35,8 @@ Item {
             required property var layerObject
             /// The transform nodes enclosing this layer, outermost first.
             required property var layerTransforms
+            /// The blur nodes enclosing this layer, outermost first.
+            required property var layerEffects
             required property int index
 
             anchors.fill: parent
@@ -51,7 +53,8 @@ Item {
                 case "text": return textComponent
                 case "image": return imageComponent
                 // Only visual nodes reach a RenderList at all, so there is
-                // nothing here for audio, separator, merge, transform or output.
+                // nothing here for audio, separator, merge, transform, blur or
+                // output.
                 default: return null
                 }
             }
@@ -59,6 +62,7 @@ Item {
             onLoaded: {
                 item.layerData = layerLoader.layerObject
                 item.layerTransforms = layerLoader.layerTransforms
+                item.layerEffects = layerLoader.layerEffects
             }
         }
     }

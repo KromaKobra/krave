@@ -96,6 +96,7 @@ private Q_SLOTS:
     void connectionsRoundTripByPortName();
     void imageNodesRoundTripTheirSourceAndCrop();
     void transformNodesRoundTripTheirPlacement();
+    void blurNodesRoundTripEverySetting();
     void aMergesTwoEdgesSurviveAsDistinctPorts();
     void loadingAFileWithoutAnOutputSynthesizesOne();
     void loadingAFileWithAnInvalidConnectionDropsOnlyThatEdge();
@@ -607,6 +608,67 @@ void TestProject::transformNodesRoundTripTheirPlacement()
                                 .arg(QString::fromUtf8(prop.name()),
                                      prop.read(reloaded).toString(),
                                      prop.read(transform).toString())));
+    }
+}
+
+void TestProject::blurNodesRoundTripEverySetting()
+{
+    // Nothing in Project.cpp knows what a blur is: the save walks the
+    // QMetaObject, so twelve new properties persist for free. This pins that --
+    // a property declared without MEMBER/NOTIFY, or not stored, would silently
+    // reset to its default on every load.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("blur.mvproj"));
+
+    NodeGraph saveGraph;
+    Project saveProject;
+    saveProject.setGraph(&saveGraph);
+    saveProject.newProject();
+
+    const int id = saveGraph.addNode(QStringLiteral("blur"), 0, 0);
+    QVERIFY(id > 0);
+    Node *blur = saveGraph.nodeById(id);
+    QVERIFY(blur);
+
+    // Every value differs from its default, so a property that failed to
+    // persist comes back visibly wrong rather than accidentally right.
+    blur->setProperty("gaussianEnabled", true);
+    blur->setProperty("gaussianAmount", 0.075);
+    blur->setProperty("chromaBlurEnabled", true);
+    blur->setProperty("chromaBlurAmount", 0.14);
+    blur->setProperty("chromaSplitEnabled", true);
+    blur->setProperty("chromaSplitAmount", 0.023);
+    blur->setProperty("maskEnabled", true);
+    blur->setProperty("maskX", 0.3);
+    blur->setProperty("maskY", 0.7);
+    blur->setProperty("maskRadius", 0.42);
+    blur->setProperty("maskSoftness", 0.9);
+    blur->setProperty("maskInvert", true);
+
+    QVERIFY(saveProject.save(QUrl::fromLocalFile(path)));
+
+    NodeGraph loadGraph;
+    Project loadProject;
+    loadProject.setGraph(&loadGraph);
+    QVERIFY2(loadProject.load(QUrl::fromLocalFile(path)), qPrintable(loadProject.lastError()));
+
+    Node *reloaded = loadGraph.nodeById(id);
+    QVERIFY(reloaded);
+    QCOMPARE(reloaded->typeId(), QStringLiteral("blur"));
+
+    // Walked rather than listed, so a property added to BlurNode later is
+    // covered here without anyone remembering to come back.
+    const QMetaObject *meta = blur->metaObject();
+    for (int i = Node::staticMetaObject.propertyOffset(); i < meta->propertyCount(); ++i) {
+        const QMetaProperty prop = meta->property(i);
+        if (!prop.isWritable() || !prop.isStored())
+            continue;
+        QVERIFY2(prop.read(reloaded) == prop.read(blur),
+                 qPrintable(QStringLiteral("property '%1' differs: %2 vs %3")
+                                .arg(QString::fromUtf8(prop.name()),
+                                     prop.read(reloaded).toString(),
+                                     prop.read(blur).toString())));
     }
 }
 
