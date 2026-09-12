@@ -23,6 +23,14 @@ QtObject {
     readonly property string importArrow: "M12 15.4 V4.6 M8.2 8.4 L12 4.6 L15.8 8.4 M5 15.6 V18.4 A2 2 0 0 0 7 20.4 H17 A2 2 0 0 0 19 18.4 V15.6"
     readonly property string exportArrow: "M12 4.6 V15.4 M8.2 11.6 L12 15.4 L15.8 11.6 M5 15.6 V18.4 A2 2 0 0 0 7 20.4 H17 A2 2 0 0 0 19 18.4 V15.6"
 
+    // ------------------------------------------------------------- node graph
+    /// Two boxes feeding a third. The graph panel's header mark.
+    readonly property string nodes: "M4.5 4 H10 V8.5 H4.5 Z M14 4 H19.5 V8.5 H14 Z M9.2 15.5 H14.8 V20 H9.2 Z M7.2 8.5 V12 H16.8 V8.5 M12 12 V15.5"
+    /// One stream fanning into three: the separator splits audio into bands.
+    readonly property string separator: "M3.5 12 H8.5 M8.5 12 C11.5 12 11.5 6.5 14.5 6.5 H20.5 M8.5 12 H20.5 M8.5 12 C11.5 12 11.5 17.5 14.5 17.5 H20.5"
+    /// A screen on a stand: the one node whose input is what gets rendered.
+    readonly property string output: "M3.8 5 H20.2 V16.5 H3.8 Z M9 20 H15 M12 16.5 V20"
+
     // ------------------------------------------------------------ layer types
     readonly property string stack: "M12 3.8 L21 8.4 L12 13 L3 8.4 Z M3 12.3 L12 16.9 L21 12.3 M3 15.9 L12 20.5 L21 15.9"
     readonly property string waveform: "M4 10 V14 M8 6.6 V17.4 M12 4 V20 M16 6.6 V17.4 M20 10 V14"

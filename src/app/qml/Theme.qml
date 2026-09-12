@@ -103,6 +103,39 @@ QtObject {
     readonly property int rightPanelWidth: 340
     readonly property int timelineHeight: 148
 
+    // ------------------------------------------------------------- node graph
+    //
+    // Connection types are colour-coded and the colour IS the type: a port, an
+    // edge and a rubber band for the same kind of data are the same hue, and
+    // nothing downstream has to match on a type string to find out which.
+    //
+    // `accent` is a near neighbour of portVisual, which is why the graph never
+    // uses an accent FILL -- selection is an accent ring. That is also the rule
+    // this file's header states for the accent generally, so the graph is not a
+    // special case so much as an unusually load-bearing instance of it.
+
+    readonly property color portVisual: "#b07cff"   // PURPLE — screen data
+    readonly property color portAudio: "#e8a05c"    // ORANGE — audio data
+    readonly property color portMask: "#6fb6ef"     // BLUE   — reserved, input-only
+
+    /// One switch, so no downstream file matches on a kind string itself.
+    function portColor(kind) {
+        return kind === "audio" ? portAudio : kind === "mask" ? portMask : portVisual
+    }
+
+    readonly property color graphBg: stage
+    readonly property color graphGrid: withAlpha(text, 0.05)
+    readonly property color nodeFill: surface
+    readonly property color nodeHeaderFill: withAlpha(text, 0.04)
+    readonly property int nodeWidth: 176
+    readonly property int nodeHeight: 62
+    readonly property int nodeHeaderHeight: 24
+    readonly property int portRadius: 5
+    /// How far from a port centre a dropped connection still lands on it.
+    /// Generous on purpose: this number is most of what makes wiring feel good.
+    readonly property int portSnapRadius: 18
+    readonly property int graphPanelWidth: 360
+
     // ------------------------------------------------------------------ type
     //
     // Inter if the machine has it, otherwise the closest thing the platform
