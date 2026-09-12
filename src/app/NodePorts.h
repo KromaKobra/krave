@@ -28,6 +28,18 @@ struct PortSpec
     /// validator, in the hit test, or in the highlighting.
     QVector<PortKind> accepts;
 
+    /// Inputs only: is the node useless until something is plugged in here?
+    ///
+    /// True for a data dependency -- a separator with no audio has nothing to
+    /// analyse, a spectrum with no audio has no bands to draw, the Output with no
+    /// visual input renders nothing at all. FALSE for a compositing input: a
+    /// spectrum with nothing behind it is simply the bottom of the chain, which is
+    /// completely normal and must not be flagged as a mistake.
+    ///
+    /// The editor draws a warning ring on an unconnected required input, so this
+    /// is the difference between a useful hint and a graph covered in false alarms.
+    bool required = false;
+
     /// Inputs only: does the subgraph reaching this port join the draw list?
     ///
     /// True for a visual input, FALSE for a mask -- a mask is sampled as a

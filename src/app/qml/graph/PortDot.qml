@@ -33,9 +33,16 @@ Item {
     /// Dim what a drop cannot reach, so the legal targets are the only lit thing.
     readonly property bool dimmed: dot.canvas.linking && !dot.compatible
 
-    /// A required input with nothing plugged in: the node will draw nothing, and
-    /// that should be visible from the graph rather than only from the inspector.
-    readonly property bool starved: !dot.isOutput && !dot.connected && !dot.canvas.linking
+    /// A REQUIRED input with nothing plugged in: the node has no data and will
+    /// produce nothing, and that should be visible from the graph rather than only
+    /// from the inspector.
+    ///
+    /// Required, not merely unconnected. A spectrum with nothing on its visual
+    /// input is just the bottom of the chain -- completely normal -- and flagging
+    /// that would put a warning on almost every graph and teach people to ignore
+    /// the marker entirely.
+    readonly property bool starved:
+        !dot.isOutput && dot.port.required === true && !dot.connected && !dot.canvas.linking
 
     // The visible dot is small; the hit area is not. 20 px is about the smallest
     // target that does not require aiming.
@@ -81,7 +88,9 @@ Item {
               ? qsTr("%1 output — drag to connect").arg(NodeTypes.title(dot.node.typeId))
               : dot.connected ? qsTr("%1 input — drag off to move or disconnect")
                                   .arg(dot.port.label)
-                              : qsTr("%1 input — not connected").arg(dot.port.label)
+              : dot.starved ? qsTr("%1 input — not connected, so this node has nothing "
+                                   + "to work with").arg(dot.port.label)
+                            : qsTr("%1 input — not connected").arg(dot.port.label)
         visible: hover.hovered && !dot.canvas.linking
         x: dot.width + Theme.space1
         y: 0
@@ -115,8 +124,12 @@ Item {
             const source = dot.node.sourceId(dot.port.name)
             if (source === 0)
                 return
+            // The band's kind comes from the SOURCE's output, not from this port.
+            // They usually match, but a mask input (kind "mask") accepts a visual
+            // output -- and dragging off one has to offer visual inputs as targets.
+            const kind = nodeGraph.outputKindFor(nodeGraph.nodeById(source).typeId)
             dot.canvas.unlink(dot.node.nodeId, dot.port.name)
-            dot.canvas.beginLink(source, dot.port.kind, at)
+            dot.canvas.beginLink(source, kind, at)
         }
 
         onPositionChanged: (mouse) => {

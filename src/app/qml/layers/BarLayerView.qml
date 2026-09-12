@@ -18,9 +18,18 @@ import QtQuick.Shapes
 LayerFrame {
     id: frame
 
-    // The bar count comes from the data, not from a visual setting: the audio
-    // provider decides how many bands there are, and mirroring doubles them.
-    readonly property int barCount: layerData ? Math.max(1, layerData.barCount) : 1
+    // The bar count comes from the data, not from a visual setting: the separator
+    // decides how many bands there are, and mirroring doubles them.
+    //
+    // Zero bands is a REAL state now -- it is what an unconnected audio input
+    // produces -- and it must draw nothing. `barCount` stays clamped to at least 1
+    // because the geometry and colour maths below divide by it; `hasBands` is what
+    // decides whether any of that gets drawn at all. Without the split, an
+    // unconnected node renders one bar filling the whole layer, which reads as a
+    // deliberate line rather than as a missing wire.
+    readonly property int bandCount: layerData ? layerData.barCount : 0
+    readonly property bool hasBands: bandCount > 0
+    readonly property int barCount: Math.max(1, bandCount)
     readonly property string orientation: layerData ? layerData.orientation : "linear"
     readonly property bool mirrorBars: layerData ? layerData.mirrorBars : false
     readonly property real arc: layerData ? layerData.arc : 0
@@ -278,7 +287,7 @@ LayerFrame {
     // ----------------------------------------------------------------- linear
     Item {
         anchors.fill: parent
-        visible: frame.orientation !== "radial" && !frame.curved
+        visible: frame.hasBands && frame.orientation !== "radial" && !frame.curved
 
         readonly property real slot: width / frame.barCount
         readonly property real barW: Math.max(1, slot * (frame.layerData ? frame.layerData.barWidthRatio : 1))
@@ -328,7 +337,7 @@ LayerFrame {
         id: arced
 
         anchors.fill: parent
-        visible: frame.curved
+        visible: frame.hasBands && frame.curved
 
         // A circular base line whose two ends stay pinned to the box corners:
         // the chord is the full width and the middle bows away from it by the
@@ -366,7 +375,7 @@ LayerFrame {
         id: radial
 
         anchors.fill: parent
-        visible: frame.orientation === "radial"
+        visible: frame.hasBands && frame.orientation === "radial"
 
         readonly property real minSide: Math.min(width, height)
         readonly property real inner: minSide * 0.5 * (frame.layerData ? frame.layerData.innerRadius : 0.35)

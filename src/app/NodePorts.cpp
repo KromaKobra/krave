@@ -16,12 +16,15 @@ const QVector<NodeTypeSpec> &table()
     static const QVector<NodeTypeSpec> specs = [] {
         QVector<NodeTypeSpec> t;
 
-        const auto visualIn = [](bool stacked = true) {
+        const auto visualIn = [](bool required = false) {
             PortSpec p;
             p.name = QStringLiteral("visual");
             p.kind = PortKind::Visual;
             p.accepts = {PortKind::Visual};
-            p.stacked = stacked;
+            p.stacked = true;
+            // Normally optional: a visual input with nothing in it just means this
+            // node is the bottom of the chain. The Output is the exception.
+            p.required = required;
             p.label = QObject::tr("Visual");
             return p;
         };
@@ -33,6 +36,8 @@ const QVector<NodeTypeSpec> &table()
             // An audio edge selects a SOURCE, it does not carry pixels into a
             // composite. Nothing about it belongs in the draw list.
             p.stacked = false;
+            // And a node with no audio has nothing to work with at all.
+            p.required = true;
             p.label = QObject::tr("Audio");
             return p;
         };
@@ -41,7 +46,7 @@ const QVector<NodeTypeSpec> &table()
         // gets drawn, and walking that input backwards produces the draw order.
         NodeTypeSpec output;
         output.typeId = QStringLiteral("output");
-        output.inputs = {visualIn()};
+        output.inputs = {visualIn(/*required=*/true)};
         output.essential = true;
         t.append(output);
 

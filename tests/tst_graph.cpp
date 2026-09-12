@@ -36,6 +36,7 @@ private Q_SLOTS:
     void portTableCoversEveryNodeType();
     void portTableInvariantsHold();
     void maskInputsAcceptVisualOutputs();
+    void onlyDataDependenciesAreRequired();
     void portKindNamesRoundTrip();
 
     // ---- the graph
@@ -122,8 +123,12 @@ void TestGraph::portTableInvariantsHold()
             QVERIFY2(!port.accepts.isEmpty(), where.constData());
 
             // An audio edge selects a source; it never contributes pixels.
-            if (port.kind == PortKind::Audio)
+            if (port.kind == PortKind::Audio) {
                 QVERIFY2(!port.stacked, where.constData());
+                // And a node with no audio has nothing to work with at all, so
+                // every audio input is a real dependency rather than an option.
+                QVERIFY2(port.required, where.constData());
+            }
         }
 
         // Output is the root of the render and so has nothing downstream of it;
@@ -159,6 +164,34 @@ void TestGraph::maskInputsAcceptVisualOutputs()
         }
     }
     qInfo("mask input ports in the table: %d", maskPorts);
+}
+
+void TestGraph::onlyDataDependenciesAreRequired()
+{
+    // The editor draws a warning ring on an unconnected REQUIRED input, so getting
+    // this wrong either hides a real problem or covers every ordinary graph in
+    // false alarms and teaches people to ignore the marker.
+    //
+    // The rule: an input is required when the node produces nothing without it. A
+    // spectrum with nothing on its visual input is just the bottom of the chain.
+    const auto requiredPorts = [](const QString &typeId) {
+        QStringList names;
+        const NodeTypeSpec *spec = nodeTypeSpec(typeId);
+        for (const PortSpec &port : spec->inputs) {
+            if (port.required)
+                names.append(port.name);
+        }
+        return names;
+    };
+
+    // Nothing reaches the Output's input and nothing renders at all.
+    QCOMPARE(requiredPorts(QStringLiteral("output")), QStringList{QStringLiteral("visual")});
+    // No audio, no bands.
+    QCOMPARE(requiredPorts(QStringLiteral("separator")), QStringList{QStringLiteral("audio")});
+    // A spectrum needs its audio but NOT something behind it.
+    QCOMPARE(requiredPorts(QStringLiteral("spectrum")), QStringList{QStringLiteral("audio")});
+    // Text over nothing is a perfectly ordinary title card.
+    QCOMPARE(requiredPorts(QStringLiteral("text")), QStringList());
 }
 
 void TestGraph::portKindNamesRoundTrip()

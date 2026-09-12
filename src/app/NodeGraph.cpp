@@ -410,6 +410,7 @@ QVariantList NodeGraph::portsFor(const QString &typeId) const
         entry.insert(QStringLiteral("name"), port.name);
         entry.insert(QStringLiteral("kind"), portKindName(port.kind));
         entry.insert(QStringLiteral("accepts"), accepts);
+        entry.insert(QStringLiteral("required"), port.required);
         entry.insert(QStringLiteral("stacked"), port.stacked);
         entry.insert(QStringLiteral("label"), port.label);
         entry.insert(QStringLiteral("index"), i);
