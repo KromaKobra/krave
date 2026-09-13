@@ -160,7 +160,7 @@
             "id": 6,
             "props": {
                 "graphX": 264,
-                "graphY": 190,
+                "graphY": 192,
                 "name": "Merge"
             },
             "type": "merge"
