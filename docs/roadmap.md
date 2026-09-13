@@ -2,8 +2,8 @@
 
 **Session**
 
-- Persist audio volume across sessions with likely a session.json file.
-- Persist loaded audio. If audio cannot be found, then it just goes back to empty audio, and on launch a subtle warning popup appears saying that audio cannot be found.
+- ~~Persist audio volume across sessions with likely a session.json file.~~ Done — `src/app/Session.h`.
+- ~~Persist loaded audio. If audio cannot be found, then it just goes back to empty audio, and on launch a subtle warning popup appears saying that audio cannot be found.~~ Done — the same session file also remembers the last project, and the warning is the strip under the toolbar (`qml/controls/NoticeBar.qml`).
 - Persist spectrum file. Allow the user to set the location of all their spectrum files, and then include a visualizer switcher popout that allows the user to see the names and a preview of all of their spectrums, and then select the one they want to use from there. Maybe include a feature where the user can select a moment in time during a song to be the audio frame displayed in the previews. Remove the open and new buttons from the header, and open the switcher when the logo on the top left of the screen is pressed. In that menu there is an option create or to open another file that may not live in the projects folder.
 
 **Playback**

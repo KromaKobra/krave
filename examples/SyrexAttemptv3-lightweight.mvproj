@@ -41,22 +41,12 @@
             "to": 11
         },
         {
-            "from": 11,
-            "port": "background",
-            "to": 12
-        },
-        {
-            "from": 5,
-            "port": "foreground",
-            "to": 12
-        },
-        {
             "from": 4,
             "port": "background",
             "to": 13
         },
         {
-            "from": 12,
+            "from": 5,
             "port": "foreground",
             "to": 13
         }
@@ -254,7 +244,7 @@
         {
             "id": 12,
             "props": {
-                "graphX": 136,
+                "graphX": 240,
                 "graphY": 560,
                 "name": "Merge"
             },

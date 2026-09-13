@@ -22,6 +22,13 @@ target_link_libraries(tst_graph PRIVATE mvapp Qt6::Test)
 set_target_properties(tst_graph PROPERTIES WIN32_EXECUTABLE FALSE)
 add_test(NAME tst_graph COMMAND tst_graph)
 
+# What the editor reopens on launch. Qt Core only, so unlike the two above this
+# one needs no platform plugin.
+qt_add_executable(tst_session tst_session.cpp)
+target_link_libraries(tst_session PRIVATE mvapp Qt6::Test)
+set_target_properties(tst_session PROPERTIES WIN32_EXECUTABLE FALSE)
+add_test(NAME tst_session COMMAND tst_session)
+
 # Both build a QGuiApplication only to own the QML engine types -- they open no
 # window. Forcing the offscreen platform keeps them runnable over SSH, in CI and
 # in the Nix build sandbox, where connecting to a display server would abort.

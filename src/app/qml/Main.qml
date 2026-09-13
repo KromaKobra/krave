@@ -57,6 +57,13 @@ ApplicationWindow {
             onExportRequested: exportDialog.open()
         }
 
+        // Whatever the session restore could not bring back. Empty on a normal
+        // launch, and zero-height when empty.
+        NoticeBar {
+            Layout.fillWidth: true
+            text: sessionWarning
+        }
+
         SplitView {
             Layout.fillWidth: true
             Layout.fillHeight: true

@@ -13,6 +13,7 @@ add_library(mvapp STATIC
     NodePorts.h        NodePorts.cpp
     Project.h          Project.cpp
     RenderList.h       RenderList.cpp
+    Session.h          Session.cpp
 )
 
 target_include_directories(mvapp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -70,6 +71,7 @@ set(app_qml_files
     qml/controls/ColorField.qml
     qml/controls/EnumCombo.qml
     qml/controls/IconButton.qml
+    qml/controls/NoticeBar.qml
     qml/controls/NumberField.qml
     qml/controls/ParamLabel.qml
     qml/controls/ParamSlider.qml

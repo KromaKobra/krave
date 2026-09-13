@@ -43,9 +43,21 @@ RowLayout {
     Item {
         id: region
 
+        /// What the name and its icon actually want. Math.ceil so sub-pixel
+        /// rounding cannot clip the last glyph into an ellipsis.
+        readonly property real wanted: Math.ceil(label.implicitWidth)
+                                       + (root.hasIcon ? root.iconSize + Theme.space1 : 0)
+
+        // Ask for precisely that. Without a preferred width the row saw this and
+        // the slack below as two equal claimants on the leftover space and handed
+        // each half, so every name elided at half the room it had. fillWidth stays
+        // on so a narrow panel can still squeeze this -- the slack has nothing left
+        // to give up, so this is what shrinks, and the name only elides once it
+        // would truly run into the control beside it.
         Layout.fillWidth: true
-        Layout.maximumWidth: label.implicitWidth
-                             + (root.hasIcon ? root.iconSize + Theme.space1 : 0)
+        Layout.preferredWidth: wanted
+        Layout.maximumWidth: wanted
+        Layout.minimumWidth: 0
         implicitHeight: Math.max(label.implicitHeight, root.iconSize)
 
         HoverHandler { id: regionHover }

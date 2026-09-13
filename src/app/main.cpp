@@ -2,14 +2,18 @@
 #include "ExportController.h"
 #include "NodeGraph.h"
 #include "Project.h"
+#include "Session.h"
 #include "SpectrumEngine.h"
 
 #include <FfmpegLocator.h>
 
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QStringList>
+#include <QUrl>
 
 int main(int argc, char *argv[])
 {
@@ -48,7 +52,57 @@ int main(int argc, char *argv[])
     QObject::connect(&project, &mv::Project::loaded,
                      &spectrumEngine, &mv::SpectrumEngine::reset);
 
+    // --------------------------------------------------------------- session
+    //
+    // Constructed after setApplicationName/setOrganizationName above, which are
+    // what Session::defaultPath() resolves the config directory from.
+    mv::Session session;
+    session.load();
+
+    // Snapshot before anything starts emitting. newProject() below clears the
+    // project path, and the save hooks -- which is exactly why they are not
+    // connected yet -- would write that empty value straight over what we came
+    // here to restore.
+    const QString lastProject = session.lastProject();
+    const QString lastAudio = session.lastAudio();
+    audioEngine.setVolume(session.volume());
+
     project.newProject();
+
+    // Restore only what is still on disk. The existence check keeps a deleted file
+    // from reaching the decoder and raising the modal error dialog on every single
+    // launch; a missing file is a quiet notice instead.
+    QStringList sessionWarnings;
+    if (!lastProject.isEmpty()) {
+        if (!QFileInfo::exists(lastProject)) {
+            sessionWarnings << QObject::tr("Couldn't reopen %1 — the file has moved or been "
+                                           "deleted.")
+                                   .arg(QFileInfo(lastProject).fileName());
+        } else if (!project.load(QUrl::fromLocalFile(lastProject))) {
+            // Wrong format, bad JSON: load() has already phrased it better than
+            // anything this could say.
+            sessionWarnings << project.lastError();
+        }
+    }
+    if (!lastAudio.isEmpty()) {
+        if (QFileInfo::exists(lastAudio)) {
+            audioEngine.importFile(QUrl::fromLocalFile(lastAudio));
+        } else {
+            sessionWarnings << QObject::tr("Couldn't reload %1 — the file has moved or been "
+                                           "deleted.")
+                                   .arg(QFileInfo(lastAudio).fileName());
+        }
+    }
+
+    // Connected only now, once the restore above has read everything it needs.
+    QObject::connect(&project, &mv::Project::filePathChanged, &session,
+                     [&] { session.setLastProject(project.filePath()); });
+    QObject::connect(&audioEngine, &mv::AudioEngine::trackChanged, &session,
+                     [&] { session.setLastAudio(audioEngine.trackPath()); });
+    QObject::connect(&audioEngine, &mv::AudioEngine::volumeChanged, &session,
+                     [&] { session.setVolume(audioEngine.volume()); });
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &session,
+                     [&] { session.flush(); });
 
     QQmlApplicationEngine engine;
     QQmlContext *ctx = engine.rootContext();
@@ -59,6 +113,8 @@ int main(int argc, char *argv[])
     ctx->setContextProperty(QStringLiteral("exportController"), &exportController);
     ctx->setContextProperty(QStringLiteral("ffmpegAvailable"), mv::ffmpeg::isAvailable());
     ctx->setContextProperty(QStringLiteral("ffmpegPath"), mv::ffmpeg::ffmpegPath());
+    ctx->setContextProperty(QStringLiteral("sessionWarning"),
+                            sessionWarnings.join(QStringLiteral(" ")));
 
     exportController.setContext(&engine, &nodeGraph, &audioEngine, &spectrumEngine, &project);
 

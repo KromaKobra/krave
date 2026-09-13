@@ -148,6 +148,11 @@ Launch the editor, optionally opening straight onto a track:
   properties, their graph positions and the connections between them, plus the canvas settings —
   and deliberately **no audio path**, so projects stay portable as reusable templates. Older files
   are rejected; `tools/migrate_v2_to_v3.py` converts them.
+- The editor **reopens where you left it**: the last project, the last track and the playback
+  volume come back on launch. That state lives in `session.json` under the platform's app-config
+  directory (`~/.config/kroma/Krave/` on Linux), *not* in the project — which is what keeps the
+  `.mvproj` portable while still saving you the re-import every session. A remembered file that
+  has since moved is reported in a dismissable strip under the toolbar and simply not loaded.
 - **Export video…** renders offscreen at the chosen resolution and pipes frames to ffmpeg.
 
 ## Layout
@@ -166,6 +171,7 @@ src/app/      the Qt Quick application
   NodeGraph          the document: nodes, edges, validation, the deletion cascade
   RenderList         the flatten: Output's visual chain, as an ordered draw list
   Project            QMetaObject-driven JSON save/load
+  Session            what to reopen on launch: last project, last track, volume
   ExportController   offscreen QQuickRenderControl -> ffmpeg stdin
   qml/               Main, VisualizerCanvas
     Theme/Icons/NodeTypes/GraphLayout  singletons: design tokens, icon paths, node
