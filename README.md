@@ -1,6 +1,6 @@
 # Krave
 
-A desktop music visualizer in the spirit of Avee Player: import a track, wire up a
+A desktop music visualizer creator tool: import a track, wire up a
 frequency-reactive visualizer as a **node graph**, preview it live against the audio, save
 the configuration as a reusable project, and export a video with the visualizer burned in.
 
